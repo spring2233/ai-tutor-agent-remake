@@ -5,7 +5,7 @@ export const FlashcardsView = () => {
   const [activeTab, setActiveTab] = useState<'flashcards' | 'quiz'>('flashcards');
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div className="page-panel">
       <div className="hero">
         <div className="eyebrow">互动学习</div>
         <h1>
@@ -18,7 +18,7 @@ export const FlashcardsView = () => {
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+      <div className="hud-tabs">
         <button
           className={`btn ${activeTab === 'flashcards' ? 'btn-primary' : ''}`}
           onClick={() => setActiveTab('flashcards')}

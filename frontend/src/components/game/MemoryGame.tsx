@@ -181,13 +181,13 @@ export const MemoryGame = () => {
       <div className="hero">
         <div className="eyebrow">记忆配对</div>
         <h1>
-          翻开、配对、<span className="grad-text">记住</span>
+          翻开、配对、<span className="grad-text">锁定轨道</span>
         </h1>
         <p>{status}</p>
       </div>
 
       {!documentId ? (
-        <Link to="/chat" className="btn btn-primary">
+        <Link to="/?panel=library" className="btn btn-primary">
           回到书架
         </Link>
       ) : (

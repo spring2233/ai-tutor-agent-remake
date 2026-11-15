@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
   Send,
@@ -65,6 +65,7 @@ function formatTokens(metrics: NonNullable<Message['metrics']>) {
 
 export const ChatView = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -147,6 +148,12 @@ export const ChatView = () => {
   // =========================================================
   // LOAD HISTORY WHEN CHAT PAGE OPENS
   // =========================================================
+
+  useEffect(() => {
+    if (params.get('shelf') === '1') {
+      setInChat(false);
+    }
+  }, [params]);
 
   useEffect(() => {
     const history = getHistoryFromStorage();
@@ -559,19 +566,6 @@ export const ChatView = () => {
     localStorage.setItem(CURRENT_DOCUMENT_NAME_KEY, document.name);
   };
 
-  const handleAskFromShelf = (document: LibraryDocument) => {
-    rememberDocument(document);
-    setMessages([]);
-    setInput('');
-    setCurrentChatId(null);
-    setInChat(true);
-  };
-
-  const handlePlayFromShelf = (document: LibraryDocument) => {
-    rememberDocument(document);
-    navigate(`/game?document=${document.id}`);
-  };
-
   const handleExploreFromShelf = (document: LibraryDocument) => {
     rememberDocument(document);
     navigate(`/quest?document=${document.id}`);
@@ -694,698 +688,170 @@ export const ChatView = () => {
     }
   };
 
-  // =========================================================
-  // UI
-  // =========================================================
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100%',
-        maxWidth: '1200px',
-        margin: '0 auto',
-        gap: '1rem',
-        minHeight: 0,
-      }}
-    >
-      {/* ===================================================
-          CHAT HISTORY
-      ==================================================== */}
-
-      <div
-        style={{
-          width: '230px',
-          minWidth: '230px',
-          display: 'flex',
-          flexDirection: 'column',
-          background:
-            'var(--surface)',
-          border:
-            '1px solid var(--border)',
-          borderRadius:
-            'var(--radius)',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            padding: '1rem',
-            borderBottom:
-              '1px solid var(--border)',
-          }}
-        >
+    <div className="chat-layout">
+      <div className="chat-history-rail">
+        <div className="chat-history-head">
           <button
             type="button"
             className="btn btn-primary"
-            onClick={
-              handleNewChat
-            }
-            style={{
-              width: '100%',
-              justifyContent:
-                'center',
-              fontSize:
-                '0.85rem',
-            }}
+            onClick={handleNewChat}
+            style={{ width: '100%', justifyContent: 'center', fontSize: '0.85rem' }}
           >
             <Plus size={16} />
             新对话
           </button>
         </div>
-
-        <div
-          style={{
-            padding:
-              '0.85rem 1rem 0.5rem',
-            fontWeight: 600,
-            fontSize:
-              '0.85rem',
-          }}
-        >
-          💬 对话记录
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding:
-              '0 0.5rem 0.75rem',
-          }}
-        >
-          {chatHistory.length ===
-          0 ? (
-            <div
-              style={{
-                padding:
-                  '1rem 0.5rem',
-                color:
-                  'var(--muted)',
-                fontSize:
-                  '0.8rem',
-                textAlign:
-                  'center',
-              }}
-            >
-              还没有历史对话。
-            </div>
+        <div className="chat-history-label">对话记录</div>
+        <div className="chat-history-list">
+          {chatHistory.length === 0 ? (
+            <div className="chat-history-empty">还没有历史对话。</div>
           ) : (
-            chatHistory.map(
-              (chat) => (
-                <div
-                  key={
-                    chat.id
+            chatHistory.map((chat) => (
+              <div
+                key={chat.id}
+                className={`chat-history-item${currentChatId === chat.id ? ' active' : ''}`}
+                onClick={() => handleRestoreChat(chat)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    handleRestoreChat(chat);
                   }
-                  onClick={() =>
-                    handleRestoreChat(
-                      chat
-                    )
-                  }
-                  style={{
-                    padding:
-                      '0.7rem',
-                    marginBottom:
-                      '0.4rem',
-                    borderRadius:
-                      '10px',
-                    cursor:
-                      'pointer',
-                    background:
-                      currentChatId ===
-                      chat.id
-                        ? 'var(--surface-strong)'
-                        : 'transparent',
-                    border:
-                      currentChatId ===
-                      chat.id
-                        ? '1px solid var(--border)'
-                        : '1px solid transparent',
-                  }}
-                >
-                  <div
-                    style={{
-                      display:
-                        'flex',
-                      alignItems:
-                        'flex-start',
-                      gap:
-                        '0.5rem',
-                    }}
-                  >
-                    <MessageSquare
-                      size={15}
-                      style={{
-                        marginTop:
-                          '2px',
-                        flexShrink:
-                          0,
-                      }}
-                    />
-
-                    <div
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize:
-                            '0.8rem',
-                          fontWeight:
-                            600,
-                          overflow:
-                            'hidden',
-                          textOverflow:
-                            'ellipsis',
-                          whiteSpace:
-                            'nowrap',
-                        }}
-                      >
-                        {
-                          chat.title
-                        }
-                      </div>
-
-                      <div
-                        style={{
-                          color:
-                            'var(--muted)',
-                          fontSize:
-                            '0.68rem',
-                          marginTop:
-                            '3px',
-                        }}
-                      >
-                        {formatDate(
-                          chat.updatedAt
-                        )}
-                      </div>
-
-                      {chat.documentId && (
-                        <div
-                          style={{
-                            color:
-                              'var(--muted)',
-                            fontSize:
-                              '0.65rem',
-                            marginTop:
-                              '3px',
-                            overflow:
-                              'hidden',
-                            textOverflow:
-                              'ellipsis',
-                            whiteSpace:
-                              'nowrap',
-                          }}
-                        >
-                          📄{' '}
-                          {
-                            chat.documentName ||
-                            chat.documentId
-                          }
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(
-                        e
-                      ) =>
-                        handleDeleteChat(
-                          e,
-                          chat.id
-                        )
-                      }
-                      style={{
-                        border:
-                          'none',
-                        background:
-                          'transparent',
-                        cursor:
-                          'pointer',
-                        padding:
-                          '2px',
-                        color:
-                          'var(--muted)',
-                      }}
-                      title="删除对话"
-                    >
-                      <Trash2
-                        size={13}
-                      />
-                    </button>
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="chat-history-row">
+                  <MessageSquare size={15} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="chat-history-title">{chat.title}</div>
+                    <div className="chat-history-meta">{formatDate(chat.updatedAt)}</div>
+                    {chat.documentId && (
+                      <div className="chat-history-doc">{chat.documentName || chat.documentId}</div>
+                    )}
                   </div>
+                  <button
+                    type="button"
+                    className="chat-history-delete"
+                    onClick={(event) => handleDeleteChat(event, chat.id)}
+                    title="删除对话"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
-              )
-            )
+              </div>
+            ))
           )}
         </div>
       </div>
 
-      {/* ===================================================
-          MAIN CHAT
-      ==================================================== */}
-
       {!inChat ? (
-        <div style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto' }}>
+        <div className="chat-shelf">
           <Bookshelf
             refreshToken={libraryVersion}
-            onAsk={handleAskFromShelf}
-            onPlay={handlePlayFromShelf}
             onExplore={handleExploreFromShelf}
             onUploaded={() => setLibraryVersion((value) => value + 1)}
           />
         </div>
       ) : (
-      <div
-        style={{
-          display:
-            'flex',
-          flexDirection:
-            'column',
-          height:
-            '100%',
-          flex: 1,
-          minWidth: 0,
-        }}
-      >
-        {/* Header */}
-
-        <div
-          style={{
-            display:
-              'flex',
-            justifyContent:
-              'space-between',
-            alignItems:
-              'center',
-            marginBottom:
-              '1rem',
-          }}
-        >
-          <div>
-            <h2>
-              💬 AI 导师对话
-            </h2>
-
-            <p
-              style={{
-                color:
-                  'var(--muted)',
-                fontSize:
-                  '0.85rem',
-              }}
-            >
-              {documentName || documentId
-                ? `基于 ${documentName || documentId}`
-                : '尚未载入文档，将使用网络搜索。'}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={handleNewChat}
-              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
-            >
-              <Library size={16} />
-              书架
-            </button>
-            <input
-              type="file"
-              id="file-upload"
-              accept=".pdf"
-              style={{
-                display:
-                  'none',
-              }}
-              onChange={
-                handleFileUpload
-              }
-            />
-
-            <label
-              htmlFor="file-upload"
-              className="btn btn-primary"
-              style={{
-                fontSize:
-                  '0.85rem',
-                padding:
-                  '0.5rem 1rem',
-                cursor:
-                  'pointer',
-              }}
-            >
-              <Upload
-                size={16}
-              />
-              上传 PDF
-            </label>
-          </div>
-        </div>
-
-        {/* Messages */}
-
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY:
-              'auto',
-            padding:
-              '1rem',
-            background:
-              'var(--surface)',
-            borderRadius:
-              'var(--radius)',
-            border:
-              '1px solid var(--border)',
-            marginBottom:
-              '1rem',
-          }}
-        >
-          {messages.length ===
-          0 ? (
-            <div
-              className="hero"
-              style={{
-                textAlign:
-                  'center',
-                margin:
-                  '2rem',
-              }}
-            >
-              <div className="eyebrow">
-                对话
-              </div>
-
-              <h1>
-                问问{' '}
-                <span className="grad-text">
-                  这本书
-                </span>
-              </h1>
-
-              <p
-                style={{
-                  margin:
-                    '1rem auto',
-                }}
-              >
-                问题会基于你从书架打开的 PDF。
+        <div className="chat-main">
+          <div className="chat-toolbar">
+            <div>
+              <h2>AI 导师对话</h2>
+              <p>
+                {documentName || documentId
+                  ? `基于 ${documentName || documentId}`
+                  : '尚未载入文档，将使用网络搜索。'}
               </p>
-
-              {documentId && (
-                <div
-                  style={{
-                    marginTop:
-                      '1rem',
-                    padding:
-                      '0.6rem 1rem',
-                    display:
-                      'inline-flex',
-                    alignItems:
-                      'center',
-                    gap:
-                      '0.5rem',
-                    border:
-                      '1px solid var(--border)',
-                    borderRadius:
-                      '99px',
-                    fontSize:
-                      '0.8rem',
-                  }}
-                >
-                  <FileIcon
-                    size={14}
-                  />
-                  {documentName || documentId}
-                </div>
-              )}
             </div>
-          ) : (
-            messages.map(
-              (msg, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    marginBottom:
-                      '1rem',
-                    padding:
-                      '1rem',
-                    borderRadius:
-                      '16px',
-                    background:
-                      msg.role ===
-                      'user'
-                        ? 'var(--surface-strong)'
-                        : 'transparent',
-                    border:
-                      msg.role ===
-                      'user'
-                        ? '1px solid var(--border)'
-                        : 'none',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight:
-                        600,
-                      marginBottom:
-                        '0.5rem',
-                      color:
-                        msg.role ===
-                        'user'
-                          ? 'var(--text)'
-                          : 'var(--primary)',
-                    }}
-                  >
-                    {msg.role ===
-                    'user'
-                      ? '🧑‍🎓 你'
-                      : '🎓 导师'}
-                  </div>
-
-                  <div
-                    style={{
-                      lineHeight:
-                        1.6,
-                    }}
-                  >
-                    <ReactMarkdown>
-                      {
-                        msg.content
-                      }
-                    </ReactMarkdown>
-                  </div>
-
-                  {msg.role ===
-                    'assistant' &&
-                    msg.source_type &&
-                    msg.source_type !==
-                      'NONE' && (
-                      <div
-                        style={{
-                          display:
-                            'flex',
-                          gap:
-                            '0.5rem',
-                          marginTop:
-                            '0.75rem',
-                          flexWrap:
-                            'wrap',
-                        }}
-                      >
-                        {msg.source_type ===
-                        'RAG' ? (
-                          <span
-                            style={{
-                              fontSize:
-                                '0.75rem',
-                              background:
-                                'var(--primary)',
-                              color:
-                                '#000',
-                              padding:
-                                '2px 8px',
-                              borderRadius:
-                                '99px',
-                              display:
-                                'flex',
-                              alignItems:
-                                'center',
-                              gap:
-                                '4px',
-                            }}
-                          >
-                            <FileIcon
-                              size={
-                                12
-                              }
-                            />
-                            {
-                              msg.source
-                            }
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize:
-                                '0.75rem',
-                              background:
-                                'var(--primary-2)',
-                              color:
-                                '#000',
-                              padding:
-                                '2px 8px',
-                              borderRadius:
-                                '99px',
-                              display:
-                                'flex',
-                              alignItems:
-                                'center',
-                              gap:
-                                '4px',
-                            }}
-                          >
-                            <Search
-                              size={
-                                12
-                              }
-                            />
-                            网络搜索
-                          </span>
-                        )}
-
-                        {msg.metrics && (
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              border: '1px solid var(--border)',
-                              color: 'var(--muted)',
-                              padding: '2px 8px',
-                              borderRadius: '99px',
-                            }}
-                          >
-                            {formatDuration(msg.metrics.total_ms)}
-                            {' · '}
-                            {formatTokens(msg.metrics)}
-                          </span>
-                        )}
-
-                        {msg.confidence !==
-                          undefined && (
-                          <span
-                            style={{
-                              fontSize:
-                                '0.75rem',
-                              border:
-                                '1px solid var(--border)',
-                              color:
-                                'var(--muted)',
-                              padding:
-                                '2px 8px',
-                              borderRadius:
-                                '99px',
-                              display:
-                                'flex',
-                              alignItems:
-                                'center',
-                              gap:
-                                '4px',
-                            }}
-                          >
-                            <CheckCircle2
-                              size={
-                                12
-                              }
-                            />
-                            置信度：{' '}
-                            {
-                              msg.confidence
-                            }%
-                          </span>
-                        )}
-                      </div>
-                    )}
-                </div>
-              )
-            )
-          )}
-
-          {isLoading && (
-            <div
-              style={{
-                padding:
-                  '1rem',
-                color:
-                  'var(--muted)',
-              }}
-            >
-              🤖 导师正在思考…
+            <div className="chat-toolbar-actions">
+              <button type="button" className="btn" onClick={handleNewChat}>
+                <Library size={16} />
+                书架
+              </button>
+              <input
+                type="file"
+                id="file-upload"
+                accept=".pdf"
+                className="sr-only"
+                onChange={handleFileUpload}
+              />
+              <label htmlFor="file-upload" className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                <Upload size={16} />
+                上传 PDF
+              </label>
             </div>
-          )}
+          </div>
 
-          <div
-            ref={
-              messagesEndRef
-            }
-          />
-        </div>
+          <div className="chat-thread">
+            {messages.length === 0 ? (
+              <div className="hero" style={{ textAlign: 'center', margin: '2rem' }}>
+                <div className="eyebrow">对话</div>
+                <h1>
+                  问问 <span className="grad-text">这本书</span>
+                </h1>
+                <p style={{ margin: '1rem auto' }}>问题会基于你从书架打开的 PDF。</p>
+                {documentId && (
+                  <div className="chat-doc-chip">
+                    <FileIcon size={14} />
+                    {documentName || documentId}
+                  </div>
+                )}
+              </div>
+            ) : (
+              messages.map((msg, idx) => (
+                <div key={idx} className={`chat-msg ${msg.role}`}>
+                  <div className="chat-msg-role">{msg.role === 'user' ? '你' : '导师'}</div>
+                  <div className="chat-msg-body">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                  {msg.role === 'assistant' && msg.source_type && msg.source_type !== 'NONE' && (
+                    <div className="chat-msg-meta">
+                      {msg.source_type === 'RAG' ? (
+                        <span className="chat-chip doc">
+                          <FileIcon size={12} />
+                          {msg.source}
+                        </span>
+                      ) : (
+                        <span className="chat-chip web">
+                          <Search size={12} />
+                          网络搜索
+                        </span>
+                      )}
+                      {msg.metrics && (
+                        <span className="chat-chip quiet">
+                          {formatDuration(msg.metrics.total_ms)} · {formatTokens(msg.metrics)}
+                        </span>
+                      )}
+                      {msg.confidence !== undefined && (
+                        <span className="chat-chip quiet">
+                          <CheckCircle2 size={12} />
+                          置信度： {msg.confidence}%
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+            {isLoading && <div className="chat-thinking">导师正在思考…</div>}
+            <div ref={messagesEndRef} />
+          </div>
 
-        {/* Input */}
-
-        <form
-          onSubmit={
-            handleSend
-          }
-          style={{
-            display:
-              'flex',
-            gap:
-              '0.5rem',
-          }}
-        >
-          <input
-            type="text"
-            className="input"
-            placeholder="就这份学习材料提问…"
-            value={
-              input
-            }
-            onChange={(
-              e
-            ) =>
-              setInput(
-                e.target.value
-              )
-            }
-            disabled={
-              isLoading
-            }
-            style={{
-              flex: 1,
-            }}
-          />
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={
-              isLoading ||
-              !input.trim()
-            }
-          >
-            <Send
-              size={18}
+          <form onSubmit={handleSend} className="chat-composer">
+            <input
+              type="text"
+              className="input"
+              placeholder="就这份学习材料提问…"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={isLoading}
+              style={{ flex: 1 }}
             />
-          </button>
-        </form>
-      </div>
+            <button type="submit" className="btn btn-primary" disabled={isLoading || !input.trim()}>
+              <Send size={18} />
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );

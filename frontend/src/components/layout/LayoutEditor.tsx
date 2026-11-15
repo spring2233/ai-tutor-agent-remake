@@ -480,7 +480,7 @@ export const LayoutEditor = () => {
           <button type="button" className="layout-icon" onClick={() => importRef.current?.click()} aria-label="导入">
             <Upload size={16} />
           </button>
-          <Link to="/chat" className="layout-back">返回</Link>
+          <Link to="/" className="layout-back">返回</Link>
         </div>
       </header>
 

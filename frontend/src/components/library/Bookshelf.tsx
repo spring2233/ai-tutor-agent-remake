@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
-import { Loader2, MessageSquare, Puzzle, Swords, Trash2, Upload } from 'lucide-react';
+import { Loader2, Swords, Trash2, Upload } from 'lucide-react';
 
 export interface LibraryDocument {
   id: string;
@@ -22,16 +22,14 @@ function coverTitle(fileName: string) {
 
 interface BookshelfProps {
   refreshToken: number;
-  onAsk: (document: LibraryDocument) => void;
-  onPlay: (document: LibraryDocument) => void;
+  variant?: 'library' | 'upload';
   onExplore: (document: LibraryDocument) => void;
   onUploaded: () => void;
 }
 
 export const Bookshelf = ({
   refreshToken,
-  onAsk,
-  onPlay,
+  variant = 'library',
   onExplore,
   onUploaded,
 }: BookshelfProps) => {
@@ -90,7 +88,7 @@ export const Bookshelf = ({
   };
 
   const handleDelete = async (document: LibraryDocument) => {
-    if (!window.confirm(`从书架移除 ${document.name}？`)) {
+    if (!window.confirm(`从档案移除 ${document.name}？`)) {
       return;
     }
     const res = await fetch(`/api/documents/${document.id}`, { method: 'DELETE' });
@@ -104,6 +102,22 @@ export const Bookshelf = ({
     await loadDocuments();
   };
 
+  const uploadControl = (
+    <div className="shelf-upload">
+      <input
+        id="shelf-upload"
+        type="file"
+        accept=".pdf"
+        hidden
+        onChange={handleUpload}
+      />
+      <label htmlFor="shelf-upload" className="btn btn-primary">
+        {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+        {isUploading ? '正在索引…' : '上传 PDF'}
+      </label>
+    </div>
+  );
+
   if (reading) {
     return (
       <div className="reader-panel">
@@ -113,20 +127,12 @@ export const Bookshelf = ({
             <h2>{reading.name}</h2>
           </div>
           <div className="reader-actions">
-            <button className="btn" type="button" onClick={() => onExplore(reading)}>
+            <button className="btn btn-primary" type="button" onClick={() => onExplore(reading)}>
               <Swords size={16} />
               闯关
             </button>
-            <button className="btn" type="button" onClick={() => onPlay(reading)}>
-              <Puzzle size={16} />
-              记忆配对
-            </button>
-            <button className="btn btn-primary" type="button" onClick={() => onAsk(reading)}>
-              <MessageSquare size={16} />
-              问导师
-            </button>
             <button className="btn" type="button" onClick={() => setReading(null)}>
-              回到书架
+              回到档案
             </button>
           </div>
         </div>
@@ -142,36 +148,30 @@ export const Bookshelf = ({
   return (
     <div className="shelf-page">
       <div className="hero">
-        <div className="eyebrow">欢迎</div>
+        <div className="eyebrow">{variant === 'upload' ? '上传' : '星图档案'}</div>
         <h1>
-          你的文档，像一排<span className="grad-text">书</span>
+          {variant === 'upload' ? (
+            <>把 PDF 放进这条<span className="grad-text">星图</span></>
+          ) : (
+            <>文档停泊在这条<span className="grad-text">星图</span></>
+          )}
         </h1>
         <p>
-          上传 PDF 放到书架上。打开一本书可以阅读、向导师提问，或用其中的术语玩记忆配对。
+          {variant === 'upload'
+            ? '选择一份 PDF，索引完成后会出现在「查看已有内容」里。'
+            : '打开一份阅读，或从这份材料开始闯关。'}
         </p>
-        <div className="shelf-upload">
-          <input
-            id="shelf-upload"
-            type="file"
-            accept=".pdf"
-            hidden
-            onChange={handleUpload}
-          />
-          <label htmlFor="shelf-upload" className="btn btn-primary">
-            {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-            {isUploading ? '正在索引…' : '上传 PDF'}
-          </label>
-        </div>
+        {uploadControl}
       </div>
 
       {error && <p className="shelf-error">{error}</p>}
 
-      {isLoading ? (
+      {variant === 'upload' ? null : isLoading ? (
         <div className="shelf-empty">
           <Loader2 className="animate-spin" />
         </div>
       ) : documents.length === 0 ? (
-        <div className="shelf-empty">书架还是空的。上传一份 PDF 开始吧。</div>
+        <div className="shelf-empty">档案库还是空的。先上传一份 PDF。</div>
       ) : (
         <div className="bookshelf">
           {documents.map((document) => (
@@ -196,12 +196,6 @@ export const Bookshelf = ({
               <div className="book-actions">
                 <button type="button" className="btn" onClick={() => setReading(document)}>
                   阅读
-                </button>
-                <button type="button" className="btn" onClick={() => onAsk(document)}>
-                  提问
-                </button>
-                <button type="button" className="btn" onClick={() => onPlay(document)}>
-                  开始
                 </button>
                 <button type="button" className="btn" onClick={() => onExplore(document)}>
                   闯关

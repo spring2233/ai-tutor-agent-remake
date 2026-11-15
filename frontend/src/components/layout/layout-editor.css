@@ -5,9 +5,9 @@
   display: grid;
   grid-template-columns: 220px 1fr 230px;
   grid-template-rows: 52px 1fr;
-  background: #eceae6;
-  color: #1d1c1a;
-  font-family: "Segoe UI", sans-serif;
+  background: #12141c;
+  color: #f5efe2;
+  font-family: Manrope, system-ui, sans-serif;
   user-select: none;
 }
 
@@ -18,8 +18,8 @@
   justify-content: space-between;
   gap: 12px;
   padding: 0 12px;
-  background: #f7f6f3;
-  border-bottom: 1px solid #ddd9d2;
+  background: #1a1d28;
+  border-bottom: 1px solid rgba(245, 239, 226, 0.14);
 }
 
 .layout-pages,

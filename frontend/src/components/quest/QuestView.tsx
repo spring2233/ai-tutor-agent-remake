@@ -237,8 +237,8 @@ export const QuestView = () => {
   if (!documentId) {
     return (
       <div className="quest-page">
-        <p>先回书架选一本书，再开始探索。</p>
-        <Link to="/chat" className="btn btn-primary">回到书架</Link>
+        <p>先回档案选一份 PDF，再开始探索。</p>
+        <Link to="/?panel=library" className="btn btn-primary">回到档案</Link>
       </div>
     );
   }

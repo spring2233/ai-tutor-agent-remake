@@ -270,8 +270,8 @@ def test_ingest_document_success(monkeypatch):
 
     monkeypatch.setattr(
         backend,
-        "parse_pdf",
-        lambda path: fake_pages,
+        "parse_pdf_bytes",
+        lambda content, source_name: fake_pages,
     )
 
     monkeypatch.setattr(

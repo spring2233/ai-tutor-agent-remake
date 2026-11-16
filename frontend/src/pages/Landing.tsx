@@ -1,68 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CosmosScene } from '../cosmos/CosmosScene';
 import { Bookshelf, type LibraryDocument } from '../components/library/Bookshelf';
+import { useCosmos } from '../cosmos/CosmosContext';
+import { markEntered } from './landingIntro';
 import './landing.css';
 
-export const LANDING_INTRO_KEY = 'ai-tutor-landing-intro';
 const CURRENT_DOCUMENT_KEY = 'ai-tutor-current-document-v2';
 const CURRENT_DOCUMENT_NAME_KEY = 'ai-tutor-current-document-name-v2';
-
-function markEntered() {
-  try {
-    sessionStorage.setItem(LANDING_INTRO_KEY, '1');
-  } catch {
-    /* ignore */
-  }
-}
 
 export const Landing = () => {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const panel = params.get('panel');
-  const rootRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<CosmosScene | null>(null);
-  const [uiOn, setUiOn] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const { scene, loaded, introDone, refreshLibrary } = useCosmos();
+  const [uiOn, setUiOn] = useState(introDone);
   const [libraryVersion, setLibraryVersion] = useState(0);
-  const skipIntro = (() => {
-    try {
-      return sessionStorage.getItem(LANDING_INTRO_KEY) === '1';
-    } catch {
-      return false;
-    }
-  })();
 
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root) {
-      return;
-    }
-    let introShown = skipIntro;
-    const scene = new CosmosScene(
-      root,
-      () => setLoaded(true),
-      () => {
-        if (!introShown) {
-          introShown = true;
-          setUiOn(true);
-        }
-      },
-      { skipIntro, mode: 'wander' },
-    );
-    sceneRef.current = scene;
-    if (skipIntro) {
-      setUiOn(true);
-    }
-    scene.initAudio();
-    return () => {
-      scene.dispose();
-      sceneRef.current = null;
-    };
-  }, [skipIntro]);
+    if (introDone) setUiOn(true);
+  }, [introDone]);
+
+  useEffect(() => {
+    scene?.setViewMode('landing');
+  }, [scene]);
 
   const openPanel = (next: 'upload' | 'library') => {
     markEntered();
+    if (next === 'library') {
+      navigate('/chat');
+      return;
+    }
     setParams({ panel: next }, { replace: true });
   };
 
@@ -82,10 +49,7 @@ export const Landing = () => {
   };
 
   const toggleSound = () => {
-    const scene = sceneRef.current;
-    if (!scene) {
-      return;
-    }
+    if (!scene) return;
     const muted = scene.toggleMute();
     const button = document.getElementById('sound');
     if (button) {
@@ -94,10 +58,7 @@ export const Landing = () => {
   };
 
   return (
-    <div className="landing-root" ref={rootRef}>
-      <div id="cosmos" aria-hidden="true">
-        <div className="js-canvas-container" />
-      </div>
+    <div className="landing-root">
       <div className={`landing-ui${uiOn ? ' on' : ''}`} id="ui">
         <header className="landing-header">
           <Link className="landing-logo" to="/" aria-label="AI 导师">
@@ -118,8 +79,8 @@ export const Landing = () => {
                 type="button"
                 className="gate-card"
                 onClick={() => openPanel('upload')}
-                onPointerEnter={() => sceneRef.current?.startHoverTransition()}
-                onPointerLeave={() => sceneRef.current?.stopHoverTransition()}
+                onPointerEnter={() => scene?.startHoverTransition()}
+                onPointerLeave={() => scene?.stopHoverTransition()}
               >
                 <span className="gate-kicker">01</span>
                 <strong>上传内容</strong>
@@ -129,8 +90,8 @@ export const Landing = () => {
                 type="button"
                 className="gate-card"
                 onClick={() => openPanel('library')}
-                onPointerEnter={() => sceneRef.current?.startHoverTransition()}
-                onPointerLeave={() => sceneRef.current?.stopHoverTransition()}
+                onPointerEnter={() => scene?.startHoverTransition()}
+                onPointerLeave={() => scene?.stopHoverTransition()}
               >
                 <span className="gate-kicker">02</span>
                 <strong>查看已有内容</strong>
@@ -140,20 +101,20 @@ export const Landing = () => {
           </section>
         )}
 
-        {panel === 'upload' || panel === 'library' ? (
+        {panel === 'upload' ? (
           <div className="glass-panel">
             <button type="button" className="glass-close" onClick={closePanel}>
               返回星空
             </button>
             <Bookshelf
               refreshToken={libraryVersion}
-              variant={panel === 'upload' ? 'upload' : 'library'}
+              variant="upload"
               onExplore={startQuest}
-              onUploaded={() => {
+              onUploaded={(created) => {
                 setLibraryVersion((value) => value + 1);
-                if (panel === 'upload') {
-                  setParams({ panel: 'library' }, { replace: true });
-                }
+                refreshLibrary().catch(() => undefined);
+                markEntered();
+                navigate(created?.id ? `/chat?spawn=${created.id}` : '/chat');
               }}
             />
           </div>

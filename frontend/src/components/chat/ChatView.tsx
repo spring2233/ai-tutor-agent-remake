@@ -63,13 +63,13 @@ function formatTokens(metrics: NonNullable<Message['metrics']>) {
   return `${total}（输入 ${prompt} / 输出 ${completion}）`;
 }
 
-export const ChatView = () => {
+export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [inChat, setInChat] = useState(false);
+  const [inChat, setInChat] = useState(embedded);
   const [libraryVersion, setLibraryVersion] = useState(0);
 
   /*
@@ -556,7 +556,9 @@ export const ChatView = () => {
     setMessages([]);
     setInput('');
     setCurrentChatId(null);
-    setInChat(false);
+    if (!embedded) {
+      setInChat(false);
+    }
   };
 
   const rememberDocument = (document: LibraryDocument) => {
@@ -660,7 +662,9 @@ export const ChatView = () => {
       setCurrentChatId(
         null
       );
-      setInChat(false);
+      if (!embedded) {
+        setInChat(false);
+      }
     }
   };
 
@@ -744,7 +748,7 @@ export const ChatView = () => {
         </div>
       </div>
 
-      {!inChat ? (
+      {!inChat && !embedded ? (
         <div className="chat-shelf">
           <Bookshelf
             refreshToken={libraryVersion}
@@ -764,10 +768,12 @@ export const ChatView = () => {
               </p>
             </div>
             <div className="chat-toolbar-actions">
-              <button type="button" className="btn" onClick={handleNewChat}>
-                <Library size={16} />
-                书架
-              </button>
+              {embedded ? null : (
+                <button type="button" className="btn" onClick={handleNewChat}>
+                  <Library size={16} />
+                  书架
+                </button>
+              )}
               <input
                 type="file"
                 id="file-upload"

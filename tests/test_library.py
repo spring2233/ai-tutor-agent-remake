@@ -37,7 +37,7 @@ def test_ingest_document_keeps_pdf(tmp_path, monkeypatch):
     monkeypatch.setattr(backend, "new_document_id", lambda: "abc123def456")
 
     page = MagicMock()
-    monkeypatch.setattr(backend, "parse_pdf", lambda path: [page])
+    monkeypatch.setattr(backend, "parse_pdf_bytes", lambda content, source_name: [page])
     monkeypatch.setattr(backend, "chunk_pages", lambda **kwargs: ["chunk"])
     monkeypatch.setattr(backend, "add_chunks", lambda chunks: None)
 

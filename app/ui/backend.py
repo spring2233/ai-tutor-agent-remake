@@ -14,8 +14,6 @@ Retrieve → Grade → Generate
 
 from __future__ import annotations
 
-import os
-import tempfile
 import re
 from typing import Any, Dict, List, Optional
 
@@ -32,7 +30,7 @@ from app.rag.library import (
     remove_stored_document,
     save_pdf,
 )
-from app.rag.pdf_parser import parse_pdf
+from app.rag.pdf_parser import parse_pdf, parse_pdf_bytes
 from app.rag.retriever import retrieve
 from app.rag.vector_store import (
     add_chunks,
@@ -79,77 +77,55 @@ def ingest_document(uploaded_file: Any) -> Dict[str, Any]:
                 "message": "Only PDF files are supported.",
             }
 
-        # Save Streamlit UploadedFile temporarily because
-        # PyPDFLoader expects a file path.
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".pdf",
-        ) as temp_file:
+        content = uploaded_file.getvalue()
+        # Parse in memory. Writing a Windows temp PDF then reopening it
+        # often fails with OSError [Errno 22] Invalid argument.
+        pages = parse_pdf_bytes(content, source_name=file_name)
+        document_id = new_document_id()
 
-            temp_file.write(uploaded_file.getvalue())
-            temp_path = temp_file.name
+        chunks = chunk_pages(
+            pages=pages,
+            document_id=document_id,
+            source_name=file_name,
+        )
 
+        add_chunks(chunks)
         try:
-            # ------------------------------------------------
-            # 1. Parse PDF
-            # ------------------------------------------------
-
-            pages = parse_pdf(temp_path)
-            content = uploaded_file.getvalue()
-            document_id = new_document_id()
-
-            # ------------------------------------------------
-            # 2. Chunk PDF
-            # ------------------------------------------------
-
-            chunks = chunk_pages(
-                pages=pages,
+            save_pdf(
                 document_id=document_id,
-                source_name=file_name,
+                content=content,
+                name=file_name,
+                pages=len(pages),
+                chunks=len(chunks),
             )
-
-            # ------------------------------------------------
-            # 3. Store in ChromaDB, then keep the original PDF
-            # ------------------------------------------------
-
-            add_chunks(chunks)
+        except Exception:
             try:
-                save_pdf(
-                    document_id=document_id,
-                    content=content,
-                    name=file_name,
-                    pages=len(pages),
-                    chunks=len(chunks),
-                )
+                delete_document(document_id)
             except Exception:
-                try:
-                    delete_document(document_id)
-                except Exception:
-                    pass
-                raise
-
-            return {
-                "status": "ok",
-                "chunks": len(chunks),
-                "name": file_name,
-                "document_id": document_id,
-                "pages": len(pages),
-                "message": f"{len(chunks)} chunks indexed successfully.",
-            }
-
-        finally:
-            # Remove temporary PDF. The library copy is kept.
-            try:
-                os.remove(temp_path)
-            except OSError:
                 pass
+            raise
+
+        return {
+            "status": "ok",
+            "chunks": len(chunks),
+            "name": file_name,
+            "document_id": document_id,
+            "pages": len(pages),
+            "message": f"{len(chunks)} chunks indexed successfully.",
+        }
 
     except Exception as exc:
+        message = str(exc)
+        if isinstance(exc, OSError) and getattr(exc, "errno", None) == 22:
+            message = (
+                "Windows 无法打开这份 PDF 的临时文件（Errno 22）。"
+                "请换一份 PDF 再试。"
+            )
         return {
             "status": "error",
             "chunks": 0,
             "name": getattr(uploaded_file, "name", None),
-            "message": str(exc),
+            "message": message,
         }
 
 

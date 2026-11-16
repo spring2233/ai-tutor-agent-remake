@@ -1,0 +1,220 @@
+.star-map {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--cream, #f5efe2);
+}
+
+.star-map-bar,
+.star-map-footer,
+.star-label,
+.planet-panel,
+.star-reticle {
+  pointer-events: auto;
+}
+
+.star-map-bar,
+.star-map-footer {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.star-map-bar {
+  top: 18px;
+}
+
+.star-map-footer {
+  bottom: 20px;
+  justify-content: flex-end;
+}
+
+.star-label {
+  position: absolute;
+  transform: translate(18px, -8px);
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.star-label svg {
+  width: 46px;
+  height: 28px;
+  overflow: visible;
+}
+
+.star-label-copy {
+  margin-top: -4px;
+  padding: 6px 10px 8px;
+  border: 1px solid rgba(245, 239, 226, 0.14);
+  background: rgba(6, 10, 20, 0.55);
+  backdrop-filter: blur(16px);
+  min-width: 140px;
+}
+
+.star-label-kicker {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  opacity: 0.7;
+}
+
+.star-label-name {
+  display: block;
+  max-width: 180px;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.star-badge {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7ee0d6;
+}
+
+.star-reticle {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+  border: 1px solid rgba(245, 239, 226, 0.55);
+  pointer-events: none;
+  animation: reticle 6s linear infinite;
+}
+
+.star-reticle::before,
+.star-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(245, 239, 226, 0.8);
+}
+
+.star-reticle::before {
+  left: 50%;
+  top: -6px;
+  width: 1px;
+  height: calc(100% + 12px);
+}
+
+.star-reticle::after {
+  top: 50%;
+  left: -6px;
+  height: 1px;
+  width: calc(100% + 12px);
+}
+
+@keyframes reticle {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.planet-panel {
+  position: absolute;
+  top: 12%;
+  right: 24px;
+  width: min(460px, 42vw);
+  max-height: calc(100vh - 18%);
+  overflow: auto;
+  padding: 1.1rem 1.15rem 1.3rem;
+  border-radius: 22px;
+  background: rgba(6, 10, 20, 0.55);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 239, 226, 0.14);
+}
+
+.planet-panel h2 {
+  font-size: 1.6rem;
+  margin: 0.2rem 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.planet-panel p {
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.planet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.planet-actions .btn {
+  justify-content: flex-start;
+}
+
+.orbit-stage {
+  position: relative;
+  min-height: 100%;
+  pointer-events: none;
+}
+
+.orbit-stage .orbit-hud {
+  pointer-events: auto;
+  position: absolute;
+  top: 10%;
+  right: 20px;
+  width: min(640px, 48vw);
+  max-height: calc(100vh - 14%);
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 22px;
+  background: rgba(6, 10, 20, 0.55);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 239, 226, 0.14);
+}
+
+.orbit-stage .landing-header {
+  pointer-events: auto;
+}
+
+.orbit-hud .chat-history-rail {
+  display: none;
+}
+
+.orbit-hud .chat-layout {
+  height: auto;
+  max-height: 100%;
+  max-width: none;
+}
+
+.hud-glass {
+  background: rgba(6, 10, 20, 0.55);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 239, 226, 0.14);
+}
+
+@media (max-width: 820px) {
+  .planet-panel,
+  .orbit-stage .orbit-hud {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    top: auto;
+    bottom: 52px;
+    max-height: 42vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star-reticle {
+    animation: none;
+  }
+}

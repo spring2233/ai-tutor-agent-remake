@@ -4,7 +4,7 @@
 
 ## 玩家流程
 
-1. 必须已有当前文档（URL `?document=` 或 `localStorage` 的 `ai-tutor-current-document-v2`）。没有则提示回书架。
+1. 必须已有当前文档（URL `?document=` 或 `localStorage` 的 `ai-tutor-current-document-v2`）。没有则提示回 `/chat` 星系。
 2. 未选角色则先选 `male`（剑士）或 `female`（法师），写入 `ai-tutor-hero`。
 3. 无缓存任务线则调用 `POST /api/quests`，body：`{ "document_id" }`。成功后整份 quest 存 `ai-tutor-quest-v2:{documentId}`，进度清空。
 4. 地图按区域顺序解锁：上一区两道任务都答对，下一区才可点。
@@ -43,6 +43,6 @@
 ## 改闯关时
 
 - 改 JSON 字段必须同时改 `backend._normalize_quest`、`QuestView` 类型和本文件。
-- 不要在没选文档时允许生成。
+- 不要在没选文档时允许生成。无文档时链到 `/chat`，不要链回已删除的书架主路由。
 - 不要把进度存到后端（当前没有这份 API）。
 - 动效改完要走：选角 → 生成或读缓存 → 锁区 → 答题 → 首领命中/失败重开。

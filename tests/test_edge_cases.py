@@ -138,12 +138,12 @@ def test_ingest_document_handles_parser_failure(monkeypatch):
     uploaded_file.name = "broken.pdf"
     uploaded_file.getvalue.return_value = b"invalid pdf data"
 
-    def failing_parser(path):
+    def failing_parser(content, source_name):
         raise RuntimeError("PDF parsing failed")
 
     monkeypatch.setattr(
         backend,
-        "parse_pdf",
+        "parse_pdf_bytes",
         failing_parser,
     )
 

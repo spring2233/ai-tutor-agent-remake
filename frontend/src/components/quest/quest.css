@@ -2,6 +2,11 @@
   max-width: 860px;
   margin: 0 auto;
   min-height: 70vh;
+  background: rgba(6, 10, 20, 0.55);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 239, 226, 0.14);
+  border-radius: 22px;
+  padding: 1.2rem;
 }
 
 .quest-page h1 {
@@ -25,7 +30,8 @@
   width: 220px;
   padding: 0.8rem;
   border: var(--border);
-  background: var(--surface);
+  background: rgba(6, 10, 20, 0.55);
+  backdrop-filter: blur(16px);
   color: var(--text);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -49,15 +55,15 @@
 }
 
 .quest-map.research {
-  background: radial-gradient(circle at top, rgba(106, 29, 29, 0.85), #0a0708 70%);
+  background: radial-gradient(circle at top, rgba(106, 29, 29, 0.45), rgba(10, 7, 8, 0.35) 70%);
 }
 
 .quest-map.teaching {
-  background: radial-gradient(circle at top, rgba(138, 100, 22, 0.8), #0c0a06 70%);
+  background: radial-gradient(circle at top, rgba(138, 100, 22, 0.4), rgba(12, 10, 6, 0.32) 70%);
 }
 
 .quest-map.exam {
-  background: radial-gradient(circle at top, rgba(22, 58, 102, 0.85), #070b12 70%);
+  background: radial-gradient(circle at top, rgba(22, 58, 102, 0.45), rgba(7, 11, 18, 0.32) 70%);
 }
 
 .quest-map h1,

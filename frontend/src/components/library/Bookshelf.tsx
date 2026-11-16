@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Loader2, Swords, Trash2, Upload } from 'lucide-react';
+import { apiErrorMessage } from '../../api/httpError';
 
 export interface LibraryDocument {
   id: string;
@@ -24,7 +25,7 @@ interface BookshelfProps {
   refreshToken: number;
   variant?: 'library' | 'upload';
   onExplore: (document: LibraryDocument) => void;
-  onUploaded: () => void;
+  onUploaded: (created?: { id: string; name: string }) => void;
 }
 
 export const Bookshelf = ({
@@ -78,10 +79,14 @@ export const Bookshelf = ({
       if (!res.ok) {
         throw new Error(data.detail || data.message || '上传失败');
       }
-      onUploaded();
+      onUploaded(
+        data.document_id
+          ? { id: data.document_id as string, name: (data.name as string) || file.name }
+          : undefined,
+      );
       await loadDocuments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '上传失败');
+      setError(apiErrorMessage(err, '上传失败'));
     } finally {
       setIsUploading(false);
     }

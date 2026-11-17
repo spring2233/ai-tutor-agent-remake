@@ -45,7 +45,7 @@ export const Landing = () => {
   const startQuest = (document: LibraryDocument) => {
     rememberDocument(document);
     markEntered();
-    navigate(`/quest?document=${document.id}`);
+    navigate(`/explore?document=${document.id}`);
   };
 
   const toggleSound = () => {
@@ -95,7 +95,21 @@ export const Landing = () => {
               >
                 <span className="gate-kicker">02</span>
                 <strong>查看已有内容</strong>
-                <span>阅读或从一份材料闯关</span>
+                <span>阅读，或降落星球探索</span>
+              </button>
+              <button
+                type="button"
+                className="gate-card gate-card-gallery"
+                onClick={() => {
+                  markEntered();
+                  navigate('/gallery');
+                }}
+                onPointerEnter={() => scene?.startHoverTransition()}
+                onPointerLeave={() => scene?.stopHoverTransition()}
+              >
+                <span className="gate-kicker">03</span>
+                <strong>星界鉴赏室</strong>
+                <span>巡礼已全部点亮的星球与知识星碑</span>
               </button>
             </div>
           </section>

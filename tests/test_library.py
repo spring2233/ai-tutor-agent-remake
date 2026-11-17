@@ -21,9 +21,15 @@ def test_save_list_and_remove_pdf(tmp_path, monkeypatch):
     assert record["name"] == "notes.pdf"
     assert library.pdf_path("abc123def456").read_bytes() == b"%PDF-1.4 test"
     assert library.list_documents()[0]["id"] == "abc123def456"
+    library.save_knowledge_units(
+        "abc123def456",
+        [{"name": "A", "statement": "s", "prerequisites": [], "plain": "p"}],
+    )
+    assert library.units_path("abc123def456").exists()
     assert library.remove_stored_document("abc123def456") is True
     assert library.list_documents() == []
     assert not library.pdf_path("abc123def456").exists()
+    assert not library.units_path("abc123def456").exists()
 
 
 def test_reject_unsafe_document_id():
@@ -40,6 +46,8 @@ def test_ingest_document_keeps_pdf(tmp_path, monkeypatch):
     monkeypatch.setattr(backend, "parse_pdf_bytes", lambda content, source_name: [page])
     monkeypatch.setattr(backend, "chunk_pages", lambda **kwargs: ["chunk"])
     monkeypatch.setattr(backend, "add_chunks", lambda chunks: None)
+    monkeypatch.setattr(backend, "extract_units_from_chunks", lambda chunks: [])
+    monkeypatch.setattr(backend, "save_knowledge_units", lambda *args, **kwargs: None)
 
     uploaded = MagicMock()
     uploaded.name = "notes.pdf"

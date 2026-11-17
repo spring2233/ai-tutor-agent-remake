@@ -19,7 +19,7 @@
 - 根据当前文档生成记忆配对
 - 四套界面主题
 
-默认对话模型是 Google Gemini。`.env` 里如果另外填了 `GROQ_API_KEY`，对话、测验和学习计划会改用 Groq。
+默认对话模型是 DashScope 的 Qwen（OpenAI 兼容接口）。`.env` 需要 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_BASE_URL`。
 
 ---
 
@@ -28,7 +28,7 @@
 | 层 | 技术 |
 | --- | --- |
 | 语言 | Python 3.12、TypeScript |
-| 对话模型 | Google Gemini；可选 Groq |
+| 对话模型 | DashScope Qwen（默认 `qwen3.7-plus`） |
 | 嵌入模型 | 本地 `sentence-transformers/all-MiniLM-L6-v2` |
 | 代理框架 | LangChain、LangGraph |
 | 向量库 | ChromaDB |
@@ -56,7 +56,7 @@
 
 - 官方 Python 3.12（[python.org](https://www.python.org/downloads/)）。3.11 装不了 `requirements.txt` 里的 `numpy==2.5.1`。不要用 MSYS2 / UCRT64 的 `python`，它的虚拟环境布局和平台标记都和 Windows 轮子不兼容。
 - Node.js 20 或更新版本（当前开发机用的是 Node.js 24 LTS）。
-- 能访问 Google Gemini 的网络。安装 PyTorch 和前端依赖时还需要能下载对应的包。
+- 能访问 DashScope 兼容接口的网络。安装 PyTorch 和前端依赖时还需要能下载对应的包。
 
 Windows 上请用 PowerShell。下面的 Windows 命令都按 PowerShell 书写。
 
@@ -110,15 +110,15 @@ copy .env.example .env
 
 macOS / Linux 用 `cp .env.example .env`。
 
-至少填入 Gemini key：
+至少填入 DashScope 配置：
 
 ```env
-GOOGLE_API_KEY=你的_Gemini_key
+DASHSCOPE_API_KEY=你的_key
+DASHSCOPE_BASE_URL=兼容模式_base_url
+DASHSCOPE_MODEL=qwen3.7-plus
 ```
 
-Key 从 [Google AI Studio](https://aistudio.google.com/) 获取。可选的 `GROQ_API_KEY` 从 [Groq Console](https://console.groq.com/) 获取；留空则全部使用 Gemini。
-
-不要把本机代理写进准备提交的文件。如果这台机器必须通过本地代理才能访问 Google，再在自己的 `.env` 里增加 `HTTP_PROXY`、`HTTPS_PROXY`，并用 `NO_PROXY=localhost,127.0.0.1` 避开本机服务。
+不要把本机代理写进准备提交的文件。如果这台机器必须通过本地代理才能访问模型服务，再在自己的 `.env` 里增加 `HTTP_PROXY`、`HTTPS_PROXY`，并用 `NO_PROXY=localhost,127.0.0.1` 避开本机服务。
 
 ### 3. 嵌入模型
 
@@ -202,7 +202,7 @@ AI-Tutor-Agent/
 ├── app/
 │   ├── api/main.py           # FastAPI
 │   ├── graph.py              # 检索、评分、生成、搜索路由
-│   ├── llm_factory.py        # Gemini / Groq 选择
+│   ├── llm_factory.py        # DashScope Qwen / 可选 Groq
 │   ├── metrics.py            # 耗时与 token
 │   ├── prompts/
 │   ├── rag/                  # 解析、切块、嵌入、检索、书架
@@ -256,7 +256,7 @@ AI-Tutor-Agent/
 - `uvicorn` 或 `npm` 找不到：对应终端没有激活 `.venv`，或者终端还在使用安装 Node 之前的 `PATH`。
 - 上传时报缺少 `sentence_transformers`：在已激活的环境里重新执行 `pip install -r requirements.txt`。
 - 上传或提问时去连 `huggingface.co`：模型目录不完整，或没有设置 `HF_HUB_OFFLINE=1`。
-- 页面一直停在 thinking：后端没有启动，或当前网络访问不了 Gemini。看后端终端里 `generateContent` 的状态码。
+- 页面一直停在 thinking：后端没有启动，或当前网络访问不了 DashScope。看后端终端里的报错。
 
 这个仓库目前适合 clone 后在本机运行。GitHub Pages 只能托管静态页面，不能代替 FastAPI、Chroma 和 MCP。
 

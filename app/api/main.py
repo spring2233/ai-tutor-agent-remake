@@ -61,6 +61,21 @@ class MemoryGameRequest(BaseModel):
 class QuestRequest(BaseModel):
     document_id: str
 
+class ZoneRequest(BaseModel):
+    document_id: str
+    # "full": 一次生成全部区域；"first": 星球简介 + 区域规划 + 第 1 区；"rest": 按规划补齐其余区域
+    stage: str = "full"
+    outline: List[Dict[str, Any]] = []
+    start: int = 1
+
+class FeynmanRequest(BaseModel):
+    title: str = ""
+    guardian_name: str = ""
+    challenge_prompt: str
+    key_points: List[str]
+    reference_explanation: str = ""
+    answer: str
+
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -203,3 +218,43 @@ async def create_quest(request: QuestRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"quest": quest}
+
+@app.post("/api/zones")
+def create_zones(request: ZoneRequest):
+    # 同步 def：模型调用在线程池里跑，后台补全区域时不会卡住同时进行的 /api/chat
+    outline = None
+    try:
+        if request.stage == "first":
+            first = backend.generate_first_zone(request.document_id)
+            zones, outline = first["zones"], first["outline"]
+        elif request.stage == "rest":
+            zones = backend.generate_rest_zones(request.document_id, request.outline, max(0, request.start))
+        else:
+            zones = backend.generate_zones(request.document_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    record = get_document(request.document_id) or {}
+    return {
+        "zones": zones,
+        "outline": outline,
+        "planetMeta": {
+            "planetName": record.get("planetName"),
+            "themeCategory": record.get("themeCategory"),
+            "themeSummary": record.get("themeSummary"),
+        },
+    }
+
+@app.post("/api/zones/feynman")
+async def judge_feynman(request: FeynmanRequest):
+    try:
+        result = backend.evaluate_feynman(
+            title=request.title,
+            guardian=request.guardian_name,
+            challenge=request.challenge_prompt,
+            key_points=request.key_points,
+            reference=request.reference_explanation,
+            answer=request.answer,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return result

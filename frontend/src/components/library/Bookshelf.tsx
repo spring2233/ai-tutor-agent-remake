@@ -118,7 +118,7 @@ export const Bookshelf = ({
       />
       <label htmlFor="shelf-upload" className="btn btn-primary">
         {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-        {isUploading ? '正在索引…' : '上传 PDF'}
+        {isUploading ? '正在切块并抽取知识单元…' : '上传 PDF'}
       </label>
     </div>
   );
@@ -134,7 +134,7 @@ export const Bookshelf = ({
           <div className="reader-actions">
             <button className="btn btn-primary" type="button" onClick={() => onExplore(reading)}>
               <Swords size={16} />
-              闯关
+              星球探索
             </button>
             <button className="btn" type="button" onClick={() => setReading(null)}>
               回到档案
@@ -163,8 +163,8 @@ export const Bookshelf = ({
         </h1>
         <p>
           {variant === 'upload'
-            ? '选择一份 PDF，索引完成后会出现在「查看已有内容」里。'
-            : '打开一份阅读，或从这份材料开始闯关。'}
+            ? '选择一份 PDF。上传后会按小节切块并抽取知识单元，完成后会出现在「查看已有内容」里。'
+            : '打开一份阅读，或降落到这颗星球开始探索。'}
         </p>
         {uploadControl}
       </div>
@@ -203,7 +203,7 @@ export const Bookshelf = ({
                   阅读
                 </button>
                 <button type="button" className="btn" onClick={() => onExplore(document)}>
-                  闯关
+                  星球探索
                 </button>
                 <button
                   type="button"

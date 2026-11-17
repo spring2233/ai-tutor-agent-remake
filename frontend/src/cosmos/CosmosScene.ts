@@ -198,31 +198,6 @@ function createRayTexture() {
   return texture;
 }
 
-function createPinkBuffer(ctx: AudioContext) {
-  const length = ctx.sampleRate * 4;
-  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  let b0 = 0;
-  let b1 = 0;
-  let b2 = 0;
-  let b3 = 0;
-  let b4 = 0;
-  let b5 = 0;
-  let b6 = 0;
-  for (let i = 0; i < length; i += 1) {
-    const white = Math.random() * 2 - 1;
-    b0 = 0.99886 * b0 + white * 0.0555179;
-    b1 = 0.99332 * b1 + white * 0.0750759;
-    b2 = 0.969 * b2 + white * 0.153852;
-    b3 = 0.8665 * b3 + white * 0.3104856;
-    b4 = 0.55 * b4 + white * 0.5329522;
-    b5 = -0.7616 * b5 - white * 0.016898;
-    data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.09;
-    b6 = white * 0.115926;
-  }
-  return buffer;
-}
-
 class CosmosAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -243,36 +218,29 @@ class CosmosAudio {
     master.gain.value = 0;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 1800;
-    filter.Q.value = 0.7;
+    filter.frequency.value = 650;
+    filter.Q.value = 0.5;
     filter.connect(master);
     master.connect(ctx.destination);
 
-    const freqs = [65.41, 98.0, 146.83];
-    const types: OscillatorType[] = ['sine', 'triangle', 'sine'];
-    freqs.forEach((freq, index) => {
+    // 纯正弦 Fmaj9 五声 Pad + 极慢 LFO 呼吸，无噪声缓冲
+    const pad = ctx.createGain();
+    pad.gain.value = 0.04;
+    const lfo = ctx.createOscillator();
+    const depth = ctx.createGain();
+    lfo.frequency.value = 0.07;
+    depth.gain.value = 0.018;
+    lfo.connect(depth);
+    depth.connect(pad.gain);
+    lfo.start();
+    [174.61, 220.0, 261.63, 329.63, 392.0].forEach((freq) => {
       const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = types[index];
-      osc.frequency.value = freq * (1 + (index - 1) * 0.0018);
-      gain.gain.value = 0.045;
-      osc.connect(gain);
-      gain.connect(filter);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      osc.connect(pad);
       osc.start();
     });
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = createPinkBuffer(ctx);
-    noise.loop = true;
-    const noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = 'lowpass';
-    noiseFilter.frequency.value = 400;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.035;
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(filter);
-    noise.start();
+    pad.connect(filter);
 
     this.ctx = ctx;
     this.master = master;
@@ -297,7 +265,7 @@ class CosmosAudio {
     if (!this.ctx || !this.filter) {
       return;
     }
-    const cutoff = 1800 - value * (1800 - 280);
+    const cutoff = 650 - value * (650 - 280);
     this.filter.frequency.setTargetAtTime(cutoff, this.ctx.currentTime, 0.08);
   }
 

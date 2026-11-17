@@ -158,11 +158,20 @@
 }
 
 .gate-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, calc(280 * var(--u))));
   gap: calc(22 * var(--u));
   margin-top: calc(40 * var(--u));
-  flex-wrap: wrap;
   justify-content: center;
+}
+
+.gate-card-gallery {
+  border-color: rgba(244, 201, 122, 0.32);
+}
+
+.gate-card-gallery .gate-kicker {
+  color: #f4c97a;
+  opacity: 0.9;
 }
 
 .gate-card {
@@ -383,8 +392,14 @@
     transform: translateY(-48%);
   }
 
+  .gate-row {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
   .gate-card {
     width: 100%;
+    min-width: 0;
   }
 
   .landing-hero h1 {

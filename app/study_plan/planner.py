@@ -270,7 +270,7 @@ def generate_study_plan(
     exam_date: str | None = None,
 ):
     """
-    Generate a personalized study plan using Groq.
+    Generate a personalized study plan.
     """
 
     validated = validate_input(

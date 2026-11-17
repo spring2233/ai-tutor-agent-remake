@@ -287,6 +287,13 @@ def test_ingest_document_success(monkeypatch):
         "add_chunks",
         mock_add_chunks,
     )
+    monkeypatch.setattr(backend, "extract_units_from_chunks", lambda chunks: [])
+    monkeypatch.setattr(backend, "save_knowledge_units", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        backend,
+        "save_pdf",
+        lambda **kwargs: {"id": "x", "name": kwargs["name"]},
+    )
 
     result = backend.ingest_document(uploaded_file)
 

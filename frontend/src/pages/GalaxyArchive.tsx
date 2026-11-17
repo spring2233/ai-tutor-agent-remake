@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, Upload } from 'lucide-react';
 import { apiErrorMessage } from '../api/httpError';
 import { useCosmos } from '../cosmos/CosmosContext';
 import { markEntered } from './landingIntro';
+import { PlanetEmblem } from '../cosmos/PlanetEmblem';
+import { formatPlanetBadge, getPlanetStage, THEME_PALETTES } from '../cosmos/planetIdentity';
 import './landing.css';
 import './galaxy.css';
 
@@ -17,6 +19,7 @@ export const GalaxyArchive = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const spawnHandled = useRef('');
 
+  const docById = useMemo(() => new Map(documents.map((d) => [d.id, d])), [documents]);
   const selectedId = params.get('focus');
   const selected = documents.find((d) => d.id === selectedId) || documents.find((d) => d.id === scene?.getActiveId());
 
@@ -122,11 +125,29 @@ export const GalaxyArchive = () => {
                   <path d="M0 28 L18 10 H46" fill="none" stroke="rgba(245,239,226,0.7)" strokeWidth="1" />
                 </svg>
                 <span className="star-label-copy">
-                  <span className="star-label-kicker">
-                    {anchor.id === '__core__' ? 'CORE // 00' : `WORLD // ${String(anchor.index + 1).padStart(2, '0')}`}
+                  {anchor.id !== '__core__' ? (
+                    <PlanetEmblem
+                      id={anchor.id}
+                      palette={docById.get(anchor.id)?.themePalette ?? THEME_PALETTES.ai_cs}
+                      progress={anchor.progress}
+                      isSelected={selectedId === anchor.id}
+                      size={30}
+                    />
+                  ) : null}
+                  <span className="star-label-text">
+                    <span className="star-label-kicker">
+                      {anchor.id === '__core__' ? 'CORE // 00' : `WORLD // ${String(anchor.index + 1).padStart(2, '0')}`}
+                    </span>
+                    <span className="star-label-name">{anchor.planetName || anchor.name}</span>
+                    {anchor.planetName ? <span className="star-label-file">{anchor.name}</span> : null}
+                    <span
+                      className={`star-badge stage-${
+                        anchor.id === '__core__' ? 'core' : getPlanetStage(anchor.progress, selectedId === anchor.id)
+                      }`}
+                    >
+                      {anchor.id === '__core__' ? '待唤醒' : formatPlanetBadge(anchor.progress, selectedId === anchor.id)}
+                    </span>
                   </span>
-                  <span className="star-label-name">{anchor.name}</span>
-                  <span className="star-badge">{anchor.id === '__core__' ? '待唤醒' : '已归档'}</span>
                 </span>
               </button>
             ) : null,
@@ -141,20 +162,23 @@ export const GalaxyArchive = () => {
           {selected && params.get('focus') ? (
             <aside className="planet-panel">
               <div className="eyebrow">全息行动</div>
-              <h2>{selected.name}</h2>
-              <p>停靠该星球轨道。右侧面板不会挡住星体。</p>
+              <h2>{selected.planetName || selected.name}</h2>
+              <p>
+                {selected.themeSummary || '停靠该星球轨道。'}
+                <br />
+                <small>
+                  {selected.filename || selected.name} · {formatPlanetBadge(selected.progress ?? 0, true)}
+                </small>
+              </p>
               <div className="planet-actions">
-                <button className="btn btn-primary" type="button" onClick={() => enter('/ask')}>
-                  进入深度问答
+                <button className="btn btn-primary" type="button" onClick={() => enter('/explore')}>
+                  星球探索 · 迷雾解锁与守门人对线
                 </button>
-                <button className="btn" type="button" onClick={() => enter('/quest')}>
-                  开启星球探索（闯关）
-                </button>
-                <button className="btn" type="button" onClick={() => enter('/flashcards')}>
-                  知识闪卡
+                <button className="btn" type="button" onClick={() => enter('/ask')}>
+                  知识问答 · 针对这份文档随时提问
                 </button>
                 <button className="btn" type="button" onClick={goBackGalaxy}>
-                  返回星系总览
+                  返回星系
                 </button>
               </div>
             </aside>

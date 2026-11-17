@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useCosmos } from '../cosmos/CosmosContext';
+import { OrbitModes } from '../components/shell/OrbitModes';
 import './landing.css';
 import './galaxy.css';
 
 export const OrbitStage = ({ children }: { children: ReactNode }) => {
   const { loaded } = useCosmos();
+  const [params] = useSearchParams();
+  const documentId = params.get('document') || localStorage.getItem('ai-tutor-current-document-v2');
   return (
     <div className="landing-root orbit-stage">
       <div className="landing-ui on">
@@ -13,9 +16,7 @@ export const OrbitStage = ({ children }: { children: ReactNode }) => {
           <Link className="landing-logo" to="/chat" aria-label="返回星系">
             AI 导师
           </Link>
-          <Link className="pill hud-pill" to="/chat">
-            返回星系
-          </Link>
+          <OrbitModes documentId={documentId} />
         </header>
         <div className="orbit-hud">{children}</div>
       </div>

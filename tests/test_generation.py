@@ -1,6 +1,5 @@
 from app.rag.vector_store import similarity_search
-from app.rag.config import settings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from app.llm_factory import make_llm
 
 
 # 1. Ask a question
@@ -31,15 +30,11 @@ context = "\n\n".join(
 )
 
 
-# 4. Create Gemini model
-llm = ChatGoogleGenerativeAI(
-    model=settings.gemini_model,
-    google_api_key=settings.google_api_key,
-    temperature=0
-)
+# 4. Create chat model
+llm = make_llm(temperature=0)
 
 
-# 5. Ask Gemini using retrieved context
+# 5. Ask the model using retrieved context
 prompt = f"""
 You are an AI tutor.
 

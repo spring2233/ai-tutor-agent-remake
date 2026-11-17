@@ -7,10 +7,12 @@
 - `app/api/main.py`：FastAPI，CORS 全开，把请求转给 `app/ui/backend.py`。
 - `app/ui/backend.py`：上传、问答、测验、闪卡、学习计划、思维导图、记忆配对、闯关生成。
 - `app/graph.py`：检索 → 评分 → 生成；评分为 `none`（或没有 `document_id`）才走 MCP 搜索。
-- `app/llm_factory.py`：有 `GROQ_API_KEY` 用 Groq，否则 Gemini。对话、测验、计划、闯关共用，Groq 不是启动条件。
+- `app/llm_factory.py`：有 `DASHSCOPE_API_KEY` 用 DashScope Qwen（OpenAI 兼容接口）。对话、测验、计划、闯关共用。输出上限读 `LLM_MAX_TOKENS`（默认 16384）。Groq 不是启动条件。
 - `app/rag/config.py`：只从本目录 `.env` 读配置。
 - `app/rag/embeddings.py`：本地 `models/all-MiniLM-L6-v2`，离线。
-- `app/rag/library.py`：`uploads/` 与 `uploads/catalog.json`，文档 id 为 12 位，不用文件名当 id。
+- `app/rag/library.py`：`uploads/` 与 `uploads/catalog.json`，文档 id 为 12 位，不用文件名当 id。知识地图在 `uploads/{id}.units.json`。
+- `app/rag/chunker.py`：按标题/编号小节和段落切块，目标 1500–3000 字、重叠约 200，尽量不在公式中间断开。上传时按块抽知识单元（概念、完整陈述、前置、人话）。
+- `POST /api/zones`：有知识地图时用单元列表生成区域；旧文档回退到 chunk 抽样。`/api/chat` 仍检索结构切块。
 - `app/metrics.py`：问答耗时和 token，经 `/api/chat` 的 `metrics` 回给聊天页。
 
 `mcp_server/` 是独立进程，不在本包启动。
@@ -31,6 +33,8 @@
 | POST | `/api/mindmap` | 思维导图 mermaid |
 | POST | `/api/games/memory` | 记忆配对词对 |
 | POST | `/api/quests` | 按 `document_id` 生成闯关 |
+| POST | `/api/zones` | 星球地表 4–6 个知识区域（含 `intel` 扫描档案、守门人 `terms` / `decoyTerm`、每区 3~4 组递进 `gates` 双子光门 `truth`/`trap`/`probe`/可选 `note`；`stage` 为 `first` 时只生成星球简介 + `outline` 规划 + 第 1 区，`rest` 时按传入的 `outline` 与 `start` 补齐其余区域（id 接续），默认 `full` 一次生成；路由是同步 `def`，模型调用在线程池里，不阻塞并发的 `/api/chat`；`_normalize_gates` 丢弃字数不对称或超范围的组，缺 gates 的区域仍有效） |
+| POST | `/api/zones/feynman` | 守门人按要点给费曼解释打共鸣度 |
 
 ## 问答图
 

@@ -570,7 +570,7 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
 
   const handleExploreFromShelf = (document: LibraryDocument) => {
     rememberDocument(document);
-    navigate(`/quest?document=${document.id}`);
+    navigate(`/explore?document=${document.id}`);
   };
 
   // =========================================================

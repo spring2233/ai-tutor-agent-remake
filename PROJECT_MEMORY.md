@@ -9,19 +9,19 @@
 - 解释器：`.venv` 为 Python 3.12.10。README 写的 Python 3.13 已过时。来源：`.venv` 与 `README.md`，状态：已核实。
 - 三个本地进程：`python -m mcp_server.server`（8001）、`uvicorn app.api.main:app --reload --port 8000`、`frontend` 里 `npm run dev`（5173，把 `/api` 代理到 8000）。来源：`README.md`、`frontend/vite.config.ts`、`mcp_server/server.py`，状态：已核实。Windows 上要先激活 `.venv\Scripts\Activate.ps1`；本机官方 Python 的 venv 在 `Scripts`，MSYS2 的 Python 会做成 `bin`，不能用来建环境。
 - 密钥文件：只认 `AI-Tutor-Agent/.env`。上一级 `new1/.env` 不会被后端读取。来源：`app/rag/config.py` 的 `env_file=".env"`，以及 2026-10-16 启动失败，状态：已确认。
-- 当前 `.env` 含这些变量名（不记录值）：`GOOGLE_API_KEY`、`HF_ENDPOINT`、`HF_HUB_DISABLE_XET`、`HF_HUB_OFFLINE`、`HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY`。没有 `GROQ_API_KEY`。来源：2026-10-18 只读取变量名，状态：已核实。
-- 对话模型：`gemini-3.6-flash`。有 Groq key 时 `app/llm_factory.py` 会优先用 Groq。来源：`app/rag/config.py`，状态：已核实。
+- 当前 `.env` 含这些变量名（不记录值）：`GOOGLE_API_KEY`（已不再被代码读取）、`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`DASHSCOPE_MODEL`、`HF_ENDPOINT`、`HF_HUB_DISABLE_XET`、`HF_HUB_OFFLINE`、`HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY`。没有 `GROQ_API_KEY`。来源：2026-11-17 接入 Qwen，状态：已核实。
+- 对话模型：`qwen3.7-plus`，经 DashScope OpenAI 兼容接口。`app/llm_factory.py` 优先 `DASHSCOPE_API_KEY`，不再走 Gemini。输出上限 `LLM_MAX_TOKENS`，默认 16384（含推理 token）。来源：`app/rag/config.py`、`app/llm_factory.py`，状态：已制作待验收。
 - 嵌入模型：本地目录 `models/all-MiniLM-L6-v2`，离线（`HF_HUB_OFFLINE=1`）。来源：`app/rag/config.py`、`app/rag/embeddings.py`，状态：已核实。权重文件存在。
 - 问答路由：`full` 和 `partial` 用文档生成；`none` 才 MCP 搜索。评分 JSON 允许包在 Markdown 代码围栏里。来源：`app/graph.py`，状态：已制作；用户在 2026-10-17 认为改后的领域随机化摘要「比较准确」，状态：该次回答已确认，后续提问未再验收。
 - 回答用量：`/api/chat` 的 `metrics` 含 `total_ms` 和 prompt/completion/total tokens；聊天页在助手消息下显示。来源：`app/metrics.py`、`frontend/src/components/chat/ChatView.tsx`，状态：已制作待验收。
-- 上传文档现在用 12 位 id 存在 `uploads/` 和 `uploads/catalog.json`，不再用文件名当 id。来源：`app/rag/library.py`、`app/ui/backend.py`，状态：已核实。旧的 Chroma 记录是否还在，本轮未再查询，状态：待确认。
-- 前端：`App` 里常驻单例 WebGL（`CosmosProvider`，路由切换不 dispose）。`/` 花谷英雄页；`/chat` 星系星图（PDF 程序化星球 + DOM 标签）；`/ask` `/quest` `/flashcards` 为 `orbit` 轨道 HUD。`/layout` 仍独立。来源：2026-11-16 全局一镜到底，状态：已制作待验收。
+- 上传文档现在用 12 位 id 存在 `uploads/` 和 `uploads/catalog.json`，不再用文件名当 id。切块按标题/段落，默认 2500 字、重叠 200，公式尽量不断开；上传同一请求里抽出知识单元到 `uploads/{id}.units.json`。`/api/zones` 优先用这份地图。来源：`app/rag/chunker.py`、`app/rag/knowledge_map.py`，状态：已制作待验收。旧的 Chroma 记录是否还在，本轮未再查询，状态：待确认。
+- 前端：`App` 里常驻单例 WebGL（`CosmosProvider`，路由切换不 dispose）。`/` 花谷英雄页；`/chat` 星系星图（PDF 程序化星球 + DOM 标签）；轨道态只有 `/explore` 星球探索与 `/ask` 知识问答（`/quest` 重定向到 `/explore`，闪卡与记忆配对已从界面移除）。`/layout` 仍独立。来源：2026-11-16 架构做减法，状态：已制作待验收。
 - Agent 说明：根目录 `AGENTS.md` 只做入口；细节在 `frontend/AGENTS.md`、`app/AGENTS.md`、`frontend/src/components/quest/AGENTS.md`。`AGENTS2.md` 不会被自动加载。来源：2026-11-15 整理，状态：已制作。
 
 ## 已确认决定
 
-1. 用 Google AI Studio 的 key 跑通项目，不把 Groq 当作启动条件。原因：用户只有 Gemini key，学习计划和测验原先在导入时强制 Groq。状态：已确认（2026-10-16）。实现：`app/llm_factory.py`。旧决定「测验和学习计划只能用 Groq」失效。
-2. 密钥放在 `AI-Tutor-Agent/.env` 的 `GOOGLE_API_KEY`。放在 `new1/.env` 无效。状态：已确认。
+1. 用 DashScope Qwen 跑通项目，不把 Groq 当作启动条件。旧决定「用 Google AI Studio 的 key」已由 2026-11-17 用户要求替换。实现：`app/llm_factory.py`。状态：已确认（2026-11-17）。
+2. 密钥放在 `AI-Tutor-Agent/.env`。对话现在认 `DASHSCOPE_API_KEY` / `DASHSCOPE_BASE_URL`。放在 `new1/.env` 无效。状态：已确认。
 3. 嵌入模型改走本地文件，不在运行时访问 `huggingface.co`。原因：直连超时；镜像的 Xet 通道返回 401。用户自行下载了 `model.safetensors`，配置文件由缓存补齐。状态：已确认（2026-10-16）。旧决定「运行时从 Hugging Face 拉取 `sentence-transformers/all-MiniLM-L6-v2`」失效。
 4. 文档能回答时不要改去网页。原因：评分被代码围栏包住，被误判成 `none`，网页结果盖过了论文。状态：已确认问题；路由修复后的一次摘要被用户认为比较准确（2026-10-17）。
 5. 回答要显示耗时和 token。状态：用户已提出要求（2026-10-17）。界面是否满意仍待验收。
@@ -64,7 +64,7 @@
 - token 与耗时显示是否符合预期。
 - 书架、记忆配对、BookIntro、LayoutEditor 是否算本次报名范围，由谁加入。
 - `uploads/catalog.json` 里现在有哪些文档。
-- `gemini-3.6-flash` 是否要换成更稳的模型名。SDK 会忽略该模型的 temperature，这只是警告，不是失败。
+- DashScope Qwen 接入后，问答页是否满意仍待用户验收。
 
 ## 制作历史
 
@@ -84,3 +84,12 @@
 14. 2026-11-16，前端：压低鼠标中心过曝；首页两块玻璃浮层共用峡谷 3D；闯关才进 arena 场景。问答/闪卡/记忆配对移出主流程。状态：已制作待验收。
 15. 2026-11-16，前端：全局常驻 Canvas + landing/galaxy/orbit 相机；PDF 星球 Shader（噪声/菲涅尔/星环）与创世动效；内页改深空毛玻璃。状态：已制作待验收。
 16. 2026-11-16，上传：Windows 上 NamedTemporaryFile 再交给 PyPDFLoader 会报 `[Errno 22] Invalid argument`。改为内存解析 `parse_pdf_bytes`。状态：已制作待验收。
+17. 2026-11-16，前端：阶段 2 地表探索盘点。迷雾信标、解锁/点亮序列、共鸣音效、三阶段 HUD、共鸣丝线、存档上一轮已写好；本轮只把信标坐标改为场景每帧推送（`onZoneAnchors`），并修复构造参数丢失 `onZoneClick`。未运行构建与浏览器。状态：已制作待验收。
+18. 2026-11-16，前端+后端：只保留星球探索与知识问答两个模式（`OrbitModes` 切换条）；探索加入战前扫描档案、概念胶囊、原典线索抽屉。`/api/zones` 新增 `intel`、`terms`、`decoyTerm`，缺失时由摘要/要点兜底，旧存档前端兜底。新增 `tests/test_zones.py` 两个用例，未运行。状态：已制作待验收。
+19. 2026-11-17，LLM：对话、测验、学习计划、闯关改为 DashScope `qwen3.7-plus`（OpenAI 兼容），去掉对 `GOOGLE_API_KEY` 的读取。状态：已制作待验收。
+20. 2026-11-17，上传：规则结构切块 + 按块抽取知识单元；探索关卡改吃 `units.json`。状态：已制作待验收。
+21. 2026-11-17，前端+后端：一星一世界第 1 步。星球名/主题配色/简介写入 catalog（上传时规则推断，生成区域时用模型输出覆盖）；区域新增 `zoneTitle`/`zoneIntro`/`progress`/`monolithNote`；`CosmosScene2` 4 档进度外观；2 颗 100% 预置示范星；首页第三卡「03 星界鉴赏室」→ `/gallery`。用户要求不跑终端与浏览器，构建、`tests/` 与页面均未运行，只过了编辑器 lint。状态：已制作待验收。
+22. 2026-11-17，前端：一星一世界第 2 阶段引擎。`CosmosScene2` 新增 `surface` 视图：大气层俯冲、星尘预算互斥、`uTerraform`/`uPlanetColor` 复苏花海与冲击波环、左右全息光门、40m 时间膨胀（25% 速度 + FOV 收）、光门屏幕投影回调、`prefers-reduced-motion` 退化。只改了 `CosmosScene2.ts`，`landing`/`galaxy`/`orbit` 与音频接口保留；React 页面和路由尚未调用 `enterSurface`。用户要求不跑终端与浏览器，构建和页面均未运行，只过了编辑器 lint。状态：已制作待验收。
+23. 2026-11-17，前端+后端：一星一世界第 3 阶段。`zone_prompt.py` 加双子光门 `gates`（论断/误区字数句式对称的硬约束 + 苏格拉底式 `probe`），`backend._normalize_gates` 做对称过滤；`/explore` 新增「降落地表 · 穿门航行」→ `SurfaceRun.tsx` 极简 HUD、守门人认知校准浮层、100% 绽放结算舱 `SurfaceFinale.tsx`（收录鉴赏室 / 费曼终极试炼走 `/api/chat`，区分文档与 Web result，说服得「星界大师」徽章）；引擎加 `appendSurfaceGates`/`playSurfaceFinale`/`startSurfaceTour`/`playGateChord`。用户要求不跑终端与浏览器，构建、`tests/test_zones.py`（新增对称光门用例）与页面均未运行，只过了编辑器 lint。状态：已制作待验收。
+24. 2026-11-17，前端：地表视觉修复（只改 `CosmosScene2.ts`，`SurfaceRun.tsx` 标签乘 `fade`）。光门单组显隐：穿过并越过 9m 后才在前方 90m 激活下一组、0.6s 淡入，React 只收当前一组投影；ACES 色调映射 + 曝光 0.88（需要 PostFX 末尾的 `#include <tonemapping_fragment>`，否则 composer 下不生效，会影响所有视图的整体色调）；花海 alpha 封顶 0.38 + 远景衰减 + 亮度上限；地表 Bloom 随复苏度动态降。用户要求不跑终端与浏览器，未运行，只过了编辑器 lint。状态：已制作待验收。
+25. 2026-11-17，前端+后端：纯净音效 + 首区秒开 + 章节多波次 + 全息伴侣/滑翔器。`CosmosScene2` 音频改纯正弦 Fmaj9 Pad 与四个新音效（`CosmosScene.ts` 未被引用，也去掉了粉红噪声）；`/api/zones` 新增 `stage=first/rest` 分段生成，前端 pending 占位 + 后台补齐 + 本地缓存；每章 3~4 道递进光门（预置星补到每区 3 道）、连击、章节知识星碑（航行中与鉴赏室）；`HoloCompanion` 读 `/mascot.png`；滑翔器换成晶体核心 + 光翼 + 尾迹并侧倾压弯。用户放在根目录的 `picture-1.png` 需要手动复制为 `frontend/public/mascot.png`（agent 不能跑终端也无法写二进制文件），没复制前显示 ✦ 占位。未运行构建、`tests/`（新增 3 个用例）与页面，只过了编辑器 lint。状态：已制作待验收。

@@ -1,9 +1,30 @@
-"""Pick Groq when GROQ_API_KEY is set, otherwise Google Gemini."""
+"""Pick DashScope Qwen by default; Groq only when GROQ_API_KEY is set."""
+
+from typing import Optional
 
 from app.rag.config import settings
 
 
-def make_llm(temperature: float, max_tokens: int = 4000):
+def make_llm(
+    temperature: float,
+    max_tokens: Optional[int] = None,
+    timeout: Optional[float] = None,
+):
+    if max_tokens is None:
+        max_tokens = settings.llm_max_tokens
+    if settings.dashscope_api_key:
+        from langchain_openai import ChatOpenAI
+
+        extra = {"timeout": timeout, "max_retries": 1} if timeout else {}
+        return ChatOpenAI(
+            model=settings.dashscope_model,
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **extra,
+        )
+
     if settings.groq_api_key:
         from langchain_groq import ChatGroq
 
@@ -12,17 +33,9 @@ def make_llm(temperature: float, max_tokens: int = 4000):
             temperature=temperature,
             api_key=settings.groq_api_key,
             max_tokens=max_tokens,
-        )
-
-    if settings.google_api_key:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        return ChatGoogleGenerativeAI(
-            model=settings.gemini_model,
-            temperature=temperature,
-            google_api_key=settings.google_api_key,
+            timeout=timeout,
         )
 
     raise ValueError(
-        "No API key provided. Please set either GOOGLE_API_KEY or GROQ_API_KEY in your .env file."
+        "No API key provided. Please set DASHSCOPE_API_KEY in your .env file."
     )

@@ -8,20 +8,14 @@ export const AppShell = () => {
           AI 导师
         </Link>
         <nav className="hud-nav" aria-label="功能">
-          <NavLink to="/chat" end className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>
-            问答
+          <NavLink to="/explore" className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>
+            星球探索
           </NavLink>
-          <NavLink to="/flashcards" className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>
-            闪卡
+          <NavLink to="/ask" className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>
+            知识问答
           </NavLink>
-          <NavLink to="/quest" className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>
-            闯关
-          </NavLink>
-          <NavLink to="/game" className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>
-            记忆配对
-          </NavLink>
-          <Link className="pill hud-pill" to="/chat?shelf=1">
-            上传与书架
+          <Link className="pill hud-pill" to="/chat">
+            返回星系
           </Link>
         </nav>
       </header>

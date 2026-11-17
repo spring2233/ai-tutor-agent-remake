@@ -16,7 +16,7 @@
 - 回答用量：`/api/chat` 的 `metrics` 含 `total_ms` 和 prompt/completion/total tokens；聊天页在助手消息下显示。来源：`app/metrics.py`、`frontend/src/components/chat/ChatView.tsx`，状态：已制作待验收。
 - 上传文档现在用 12 位 id 存在 `uploads/` 和 `uploads/catalog.json`，不再用文件名当 id。切块按标题/段落，默认 2500 字、重叠 200，公式尽量不断开；上传同一请求里抽出知识单元到 `uploads/{id}.units.json`。`/api/zones` 优先用这份地图。来源：`app/rag/chunker.py`、`app/rag/knowledge_map.py`，状态：已制作待验收。旧的 Chroma 记录是否还在，本轮未再查询，状态：待确认。
 - 前端：`App` 里常驻单例 WebGL（`CosmosProvider`，路由切换不 dispose）。`/` 花谷英雄页；`/chat` 星系星图（PDF 程序化星球 + DOM 标签）；轨道态只有 `/explore` 星球探索与 `/ask` 知识问答（`/quest` 重定向到 `/explore`，闪卡与记忆配对已从界面移除）。`/layout` 仍独立。来源：2026-11-16 架构做减法，状态：已制作待验收。
-- Agent 说明：根目录 `AGENTS.md` 只做入口；细节在 `frontend/AGENTS.md`、`app/AGENTS.md`、`frontend/src/components/quest/AGENTS.md`。`AGENTS2.md` 不会被自动加载。来源：2026-11-15 整理，状态：已制作。
+- Agent 说明：根目录 `AGENTS.md` 只做入口；细节在 `frontend/AGENTS.md`、`app/AGENTS.md`、`frontend/src/components/quest/AGENTS.md`。`AGENTS2.md` 与根目录空的 `graph.py`、`main.py`、旧脚本 `test_groq.py` 已于 2026-11-17 按用户要求从仓库删除（根目录精简）。来源：2026-11-15 整理，状态：已制作。
 
 ## 已确认决定
 

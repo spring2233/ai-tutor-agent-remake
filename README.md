@@ -234,9 +234,6 @@ npm run dev
 ├── requirements.txt
 └── .env.example
 ```
-
-`frontend/src/components/` 里还保留着闪卡、测验、记忆配对、经典闯关等旧组件，它们已不在界面上。
-
 ---
 
 ## API
@@ -251,7 +248,7 @@ npm run dev
 | `POST` | `/api/zones` | 生成星球知识区域与双生光门；`stage` 为 `first` 只生成星球简介、区域规划和第 1 区，`rest` 补齐其余区域，默认 `full` |
 | `POST` | `/api/zones/feynman` | 守门人按要点给费曼解释打共鸣度 |
 
-闪卡、测验、学习计划、思维导图、记忆配对、闯关等旧接口仍在后端，前端已不调用。完整列表见 <http://127.0.0.1:8000/docs>。
+完整接口文档见 <http://127.0.0.1:8000/docs>。
 
 ---
 

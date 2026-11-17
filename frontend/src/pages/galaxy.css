@@ -56,10 +56,10 @@
 .star-label-copy {
   margin-top: -4px;
   padding: 6px 10px 8px;
-  border: 1px solid rgba(245, 239, 226, 0.14);
-  background: rgba(6, 10, 20, 0.55);
-  backdrop-filter: blur(16px);
+  border: 0;
+  background: transparent;
   min-width: 140px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.6);
 }
 
 .star-label-kicker {

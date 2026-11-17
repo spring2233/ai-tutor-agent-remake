@@ -198,15 +198,18 @@ function createRayTexture() {
   return texture;
 }
 
+const LEGACY_CHIME_POOL = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 659.25, 783.99];
+
 class CosmosAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  private filter: BiquadFilterNode | null = null;
   private muted = true;
+  private muffled = false;
+  private chimeTimer: ReturnType<typeof setTimeout> | null = null;
   isInitialized = false;
 
   initAudio() {
-    if (this.isInitialized) {
+    if (this.ctx) {
       return;
     }
     const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -216,35 +219,9 @@ class CosmosAudio {
     const ctx = new Ctx();
     const master = ctx.createGain();
     master.gain.value = 0;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 650;
-    filter.Q.value = 0.5;
-    filter.connect(master);
     master.connect(ctx.destination);
-
-    // 纯正弦 Fmaj9 五声 Pad + 极慢 LFO 呼吸，无噪声缓冲
-    const pad = ctx.createGain();
-    pad.gain.value = 0.04;
-    const lfo = ctx.createOscillator();
-    const depth = ctx.createGain();
-    lfo.frequency.value = 0.07;
-    depth.gain.value = 0.018;
-    lfo.connect(depth);
-    depth.connect(pad.gain);
-    lfo.start();
-    [174.61, 220.0, 261.63, 329.63, 392.0].forEach((freq) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      osc.connect(pad);
-      osc.start();
-    });
-    pad.connect(filter);
-
     this.ctx = ctx;
     this.master = master;
-    this.filter = filter;
     this.isInitialized = true;
   }
 
@@ -257,25 +234,73 @@ class CosmosAudio {
     this.muted = !this.muted;
     const now = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(now);
-    this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 0.9, now + 0.7);
+    this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 0.15, now + 0.35);
+    if (this.muted) {
+      this.stopChimes();
+    } else {
+      this.scheduleChimes();
+    }
     return this.muted;
   }
 
   setHover(value: number) {
-    if (!this.ctx || !this.filter) {
-      return;
+    this.muffled = value > 0.35;
+  }
+
+  private stopChimes() {
+    if (this.chimeTimer != null) {
+      clearTimeout(this.chimeTimer);
+      this.chimeTimer = null;
     }
-    const cutoff = 650 - value * (650 - 280);
-    this.filter.frequency.setTargetAtTime(cutoff, this.ctx.currentTime, 0.08);
+  }
+
+  private scheduleChimes() {
+    this.stopChimes();
+    const tick = () => {
+      if (this.muted || !this.ctx || !this.master) return;
+      const count = Math.random() < 0.55 ? 1 : 2;
+      const peak = this.muffled ? 0.038 : 0.06;
+      const used = new Set<number>();
+      for (let i = 0; i < count; i += 1) {
+        let idx = Math.floor(Math.random() * LEGACY_CHIME_POOL.length);
+        while (used.has(idx) && used.size < LEGACY_CHIME_POOL.length) {
+          idx = Math.floor(Math.random() * LEGACY_CHIME_POOL.length);
+        }
+        used.add(idx);
+        this.chime(LEGACY_CHIME_POOL[idx], this.ctx.currentTime + i * 0.08, peak);
+      }
+      const [lo, hi] = this.muffled ? [2.4, 4.0] : [1.4, 2.6];
+      this.chimeTimer = setTimeout(tick, (lo + Math.random() * (hi - lo)) * 1000);
+    };
+    this.chimeTimer = setTimeout(tick, 180);
+  }
+
+  private chime(freq: number, at: number, peak: number) {
+    if (!this.ctx || !this.master) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, at);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(peak, at + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 2.28);
+    osc.connect(gain);
+    gain.connect(this.master);
+    osc.start(at);
+    osc.stop(at + 2.32);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
   }
 
   dispose() {
+    this.stopChimes();
     if (this.ctx) {
       void this.ctx.close();
     }
     this.ctx = null;
     this.master = null;
-    this.filter = null;
     this.isInitialized = false;
   }
 }

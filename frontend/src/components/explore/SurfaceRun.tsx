@@ -301,12 +301,10 @@ export const SurfaceRun = ({ scene, documentId, planetName, save, update, reduce
           const el = labelRefs.current.get(key);
           if (!el) return;
           seen.add(key);
-          const show = a.visible && a.state === 'pending' && a.distance > -2 && a.distance < LABEL_RANGE;
-          el.style.transform = `translate3d(${a.x.toFixed(1)}px, ${a.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
-          el.style.opacity = show ? (Math.min(1, (LABEL_RANGE - a.distance) / 40) * a.fade).toFixed(2) : '0';
-          el.style.setProperty('--gate-size', `${Math.max(12, Math.min(30, a.height * 0.1)).toFixed(1)}px`);
-          el.style.setProperty('--gate-width', `${Math.max(120, a.height * 0.74).toFixed(0)}px`);
-          el.classList.toggle('focus', a.focus);
+          // 题目文字固定在屏幕左右两侧，不跟随光门投影移动，只按光门状态淡入淡出
+          const show = a.state === 'pending' && a.distance > -2 && a.distance < LABEL_RANGE;
+          el.style.opacity = show ? a.fade.toFixed(2) : '0';
+          el.classList.toggle('focus', a.focus && a.distance < 45);
         });
         labelRefs.current.forEach((el, key) => {
           if (!seen.has(key)) el.style.opacity = '0';

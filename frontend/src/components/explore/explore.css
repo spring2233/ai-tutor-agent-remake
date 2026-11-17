@@ -902,24 +902,44 @@
 }
 
 .gate-label {
-  --gate-size: 16px;
-  --gate-width: 160px;
   position: absolute;
-  left: 0;
-  top: 0;
-  width: var(--gate-width);
-  padding: 0.45em 0.6em;
-  border-radius: 10px;
+  top: 58%;
+  width: min(260px, 34vw);
+  padding: 0.6em 0.8em;
+  border-radius: 12px;
   background: rgba(6, 10, 20, 0.42);
   border: 1px solid rgba(126, 224, 214, 0.35);
   text-align: center;
-  font-size: var(--gate-size);
+  font-size: 18px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
   text-shadow: 0 0 10px rgba(126, 224, 214, 0.5);
   opacity: 0;
-  will-change: transform, opacity;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.gate-label.left {
+  left: 27%;
+}
+
+.gate-label.right {
+  left: 73%;
+}
+
+@media (max-width: 640px) {
+  .gate-label {
+    width: 42vw;
+    font-size: 14px;
+  }
+
+  .gate-label.left {
+    left: 25%;
+  }
+
+  .gate-label.right {
+    left: 75%;
+  }
 }
 
 .gate-label.focus {

@@ -205,7 +205,6 @@ const PostFXShader = {
       col += grain;
 
       gl_FragColor = vec4(max(col, 0.0), 1.0);
-      #include <tonemapping_fragment>
     }
   `,
 };
@@ -530,10 +529,7 @@ const surfaceFieldVertexShader = /* glsl */ `
     vFog = smoothstep(40.0, 170.0, dist);
 
     float body = aType < 0.5 ? 0.16 + 0.74 * vAwake : 0.1 + 0.4 * vAwake;
-    // 复苏态单点 alpha 封顶 0.38，远景超过 22m 逐步变淡，防止密集花海叠成白光团
-    float alphaCap = mix(0.6, 0.38, max(vAwake, uTerraform));
-    float distFade = 1.0 - 0.72 * smoothstep(22.0, 95.0, dist);
-    vAlpha = min(body + vFront * 0.5, alphaCap) * distFade * nearFade * farFade;
+    vAlpha = (body + vFront * 0.5) * nearFade * farFade;
 
     gl_Position = projectionMatrix * mv;
     float size = aScale * (0.55 + vAwake * 1.25 + vFront * 1.4) * uPixelRatio * (190.0 / max(dist, 1.0));
@@ -571,13 +567,10 @@ const surfaceFieldFragmentShader = /* glsl */ `
 
     vec3 dormant = vec3(0.17, 0.2, 0.27);
     vec3 bloom = mix(uPlanetColor, uAccentColor, step(0.72, vSeed) * 0.85);
-    bloom = mix(bloom, vec3(1.0, 0.97, 0.9), exp(-r * r * 9.0) * 0.28);
+    bloom = mix(bloom, vec3(1.0, 0.97, 0.9), exp(-r * r * 9.0) * 0.45);
     vec3 col = mix(dormant, bloom, vAwake);
     col += mix(uPlanetColor, vec3(1.0), 0.35) * vFront * 0.9;
     col = mix(col, vec3(0.02, 0.03, 0.06), vFog * 0.85);
-    // 亮度上限：保留色相，只压最高分量，满复苏时也不会被加色混合推成纯白
-    float peak = max(max(col.r, col.g), col.b);
-    col *= min(1.0, 0.82 / max(peak, 1e-3));
     gl_FragColor = vec4(col, shape * vAlpha);
   }
 `;
@@ -721,16 +714,42 @@ const uvVertexShader = /* glsl */ `
 `;
 
 // ============================================================================
-// 4. Web Audio 环境音合成器（全部纯正弦，无噪声缓冲、无锯齿波）
+// 4. Web Audio：生成式宇宙风铃（纯正弦，无噪声缓冲 / 无锯齿 / 无持续低频）
 // ============================================================================
-const PAD_CUTOFF = 650;
-/** C 大调五声音阶 C5 D5 E5 G5 A5 C6 D6 E6 G6 A6，连击越高起始音越高。 */
-const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51, 1567.98, 1760.0];
+const MASTER_CEILING = 0.15;
+/** C 大调五声音阶高频池：C4 D4 E4 G4 A4 C5 E5 G5（全部 ≥ 260Hz）。 */
+const CHIME_POOL = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 659.25, 783.99];
+const GATE_ARPEGGIO = [1046.5, 1318.51, 1567.98, 2093.0]; // C6 E6 G6 C7
+const GATE_MAX_LIFT = 7;
+const SEMITONE = 2 ** (1 / 12);
+
+/** 全页唯一 AudioContext，多次 unmute 不会叠第二套图。 */
+let sharedAudioCtx: AudioContext | null = null;
+
+function getSharedAudioContext(): AudioContext | null {
+  if (sharedAudioCtx && sharedAudioCtx.state !== 'closed') {
+    return sharedAudioCtx;
+  }
+  const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return null;
+  sharedAudioCtx = new AudioCtx();
+  return sharedAudioCtx;
+}
+
+// 开发热更新会重新执行本模块：旧 AudioContext 不关掉就会和新的一起响，听起来像持续底噪
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (sharedAudioCtx && sharedAudioCtx.state !== 'closed') void sharedAudioCtx.close().catch(() => {});
+    sharedAudioCtx = null;
+  });
+}
 
 class ValleyAudioController {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private filterNode: BiquadFilterNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private chimeTimer: ReturnType<typeof setTimeout> | null = null;
+  private muffled = false;
   public isInitialized = false;
   public isMuted = true;
 
@@ -739,156 +758,173 @@ class ValleyAudioController {
   }
 
   private ensureContext() {
-    if (this.ctx) return;
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AudioCtx();
-
-    this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.value = 0.0;
-
-    this.filterNode = this.ctx.createBiquadFilter();
-    this.filterNode.type = 'lowpass';
-    this.filterNode.frequency.value = PAD_CUTOFF;
-    this.filterNode.Q.value = 0.5;
-
-    this.filterNode.connect(this.masterGain);
-    this.masterGain.connect(this.ctx.destination);
-
-    // 空灵 Pad：5 个纯正弦组成 Fmaj9 五声和弦，低频组与高频组各由一个极慢 LFO 调制音量，形成错落的呼吸感
-    const ctx = this.ctx;
-    const filter = this.filterNode;
-    const groups = [
-      { freqs: [174.61, 220.0, 261.63], level: 0.05, rate: 0.071 },
-      { freqs: [329.63, 392.0], level: 0.028, rate: 0.047 },
-    ];
-    groups.forEach(({ freqs, level, rate }) => {
-      const bus = ctx.createGain();
-      bus.gain.value = level;
-      const lfo = ctx.createOscillator();
-      const depth = ctx.createGain();
-      lfo.type = 'sine';
-      lfo.frequency.value = rate;
-      depth.gain.value = level * 0.45;
-      lfo.connect(depth);
-      depth.connect(bus.gain);
-      lfo.start();
-      freqs.forEach((f) => {
-        const osc = ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.value = f;
-        osc.connect(bus);
-        osc.start();
-      });
-      bus.connect(filter);
-    });
+    if (this.ctx && this.masterGain) return;
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
+    this.ctx = ctx;
+    if (!this.masterGain) {
+      this.masterGain = ctx.createGain();
+      this.masterGain.gain.value = 0;
+      this.masterGain.connect(ctx.destination);
+    }
+    if (!this.sfxGain) {
+      this.sfxGain = ctx.createGain();
+      this.sfxGain.gain.value = 0.9;
+      this.sfxGain.connect(ctx.destination);
+    }
   }
 
   public toggleMute(): boolean {
     this.ensureContext();
     if (!this.ctx || !this.masterGain) return true;
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume();
     }
     this.isMuted = !this.isMuted;
     const now = this.ctx.currentTime;
     this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.setTargetAtTime(this.isMuted ? 0.0 : 0.4, now, 0.4);
+    this.masterGain.gain.setTargetAtTime(this.isMuted ? 0 : MASTER_CEILING, now, 0.25);
+    if (this.isMuted) {
+      this.stopChimes();
+    } else {
+      this.scheduleChimes(true);
+    }
     return this.isMuted;
   }
 
   public setMuffled(muffled: boolean) {
-    if (!this.ctx || !this.filterNode) return;
-    const now = this.ctx.currentTime;
-    this.filterNode.frequency.cancelScheduledValues(now);
-    this.filterNode.frequency.setTargetAtTime(muffled ? 260 : PAD_CUTOFF, now, 0.35);
+    this.muffled = muffled;
   }
 
-  // 音效与环境音共用静音开关：默认静音时不出声
-  private sfxBus(): AudioContext | null {
-    if (this.isMuted || !this.ctx) return null;
-    if (!this.sfxGain) {
-      this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.value = 0.6;
-      this.sfxGain.connect(this.ctx.destination);
+  private stopChimes() {
+    if (this.chimeTimer != null) {
+      clearTimeout(this.chimeTimer);
+      this.chimeTimer = null;
     }
-    return this.ctx;
   }
 
-  private sfxGain: GainNode | null = null;
+  private scheduleChimes(immediate = false) {
+    this.stopChimes();
+    const wait = () => {
+      const [lo, hi] = this.muffled ? [2.4, 4.0] : [1.4, 2.6];
+      return (lo + Math.random() * (hi - lo)) * 1000;
+    };
+    const tick = () => {
+      if (this.isMuted || !this.ctx) return;
+      this.ringChimes();
+      this.chimeTimer = setTimeout(tick, wait());
+    };
+    this.chimeTimer = setTimeout(tick, immediate ? 180 : wait());
+  }
 
-  /** 一个纯正弦音：attack 秒内升到 peak，再指数衰减到 at + length。 */
-  private tone(ctx: AudioContext, freq: number, at: number, length: number, peak: number, attack = 0.008, endFreq?: number) {
-    if (!this.sfxGain) return;
+  private ringChimes() {
+    const ctx = this.ctx;
+    const bus = this.masterGain;
+    if (!ctx || !bus) return;
+    const count = Math.random() < 0.55 ? 1 : 2;
+    const used = new Set<number>();
+    const peak = this.muffled ? 0.038 : 0.06;
+    for (let i = 0; i < count; i += 1) {
+      let idx = Math.floor(Math.random() * CHIME_POOL.length);
+      while (used.has(idx) && used.size < CHIME_POOL.length) {
+        idx = Math.floor(Math.random() * CHIME_POOL.length);
+      }
+      used.add(idx);
+      this.playSine(ctx, bus, CHIME_POOL[idx], ctx.currentTime + i * (0.06 + Math.random() * 0.12), 0.08, 2.2, peak);
+    }
+  }
+
+  /** 纯正弦：attack 秒起音至 peak，再 decay 秒指数落到 0.0001 后停振并断开。 */
+  private playSine(
+    ctx: AudioContext,
+    dest: AudioNode,
+    freq: number,
+    at: number,
+    attack: number,
+    decay: number,
+    peak: number,
+  ) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, at);
-    if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, at + length);
     gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(peak, at + attack);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), at + attack);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + attack + decay);
     osc.connect(gain);
-    gain.connect(this.sfxGain);
+    gain.connect(dest);
     osc.start(at);
-    osc.stop(at + length + 0.05);
+    const halt = at + attack + decay + 0.04;
+    osc.stop(halt);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
   }
 
-  /** 章节完成：65.4Hz（C2）纯净低频共鸣 + 523.25Hz（C5）泛音钟声，约 2s。 */
+  private sfxBus(): AudioContext | null {
+    if (this.isMuted) return null;
+    this.ensureContext();
+    return this.ctx && this.sfxGain ? this.ctx : null;
+  }
+
+  /** 章节完成：C 大调分解和弦泛音，错开 60ms，余音 1.5s。 */
   public playResonanceBoom() {
     const ctx = this.sfxBus();
-    if (!ctx) return;
+    if (!ctx || !this.sfxGain) return;
     const now = ctx.currentTime;
-    this.tone(ctx, 65.41, now, 2.0, 0.7, 0.12);
-    this.tone(ctx, 130.81, now, 1.4, 0.12, 0.12);
-    const bell = now + 0.35;
-    this.tone(ctx, 523.25, bell, 1.8, 0.16, 0.01);
-    this.tone(ctx, 1046.5, bell, 1.1, 0.05, 0.01);
+    const chord = [261.63, 392.0, 523.25, 783.99];
+    chord.forEach((freq, i) => {
+      this.playSine(ctx, this.sfxGain!, freq, now + i * 0.06, 0.04, 1.5, 0.13 / (1 + i * 0.12));
+    });
   }
 
-  /** 穿对光门：上升的五声音阶风铃琶音，`combo` 越高起始音越高（C5 → D5 → E5 → G5 …）。 */
+  /** 穿对光门：明亮的 C6→E6→G6→C7 风铃琶音，combo 每加 1 升高半音（最多 7 个半音）。 */
   public playGatePass(combo = 1) {
     const ctx = this.sfxBus();
-    if (!ctx) return;
+    if (!ctx || !this.sfxGain) return;
     const now = ctx.currentTime;
-    const start = Math.max(0, Math.min(combo - 1, PENTATONIC.length - 4));
-    for (let k = 0; k < 4; k += 1) {
-      const freq = PENTATONIC[start + k];
-      const at = now + k * 0.06;
-      this.tone(ctx, freq, at, 0.9, 0.11 / (1 + k * 0.25), 0.006);
-      this.tone(ctx, freq * 2, at, 0.4, 0.025, 0.004);
-    }
+    const mul = SEMITONE ** Math.min(GATE_MAX_LIFT, Math.max(0, combo - 1));
+    GATE_ARPEGGIO.forEach((freq, i) => {
+      const at = now + i * 0.07;
+      this.playSine(ctx, this.sfxGain!, freq * mul, at, 0.006, 0.55, 0.16 / (1 + i * 0.2));
+      this.playSine(ctx, this.sfxGain!, freq * mul * 2, at, 0.004, 0.18, 0.03);
+    });
   }
 
-  /** 穿错光门：140Hz → 80Hz 柔和深沉的脉冲闷响，180ms。 */
+  /** 穿错光门：E5 → B4 柔和双音下行，240ms，中频清楚但不刺耳。 */
   public playErrorBuzz() {
     const ctx = this.sfxBus();
-    if (!ctx) return;
-    this.tone(ctx, 140, ctx.currentTime, 0.18, 0.4, 0.01, 80);
+    if (!ctx || !this.sfxGain) return;
+    const now = ctx.currentTime;
+    this.playSine(ctx, this.sfxGain, 659.25, now, 0.01, 0.24, 0.12);
+    this.playSine(ctx, this.sfxGain, 493.88, now + 0.12, 0.01, 0.26, 0.11);
   }
 
-  /** 清脆的 1046Hz（C6）短促滴答，30ms。 */
+  /** D6 水晶轻碰，25ms 衰减。 */
   public playUiTick() {
     const ctx = this.sfxBus();
-    if (!ctx) return;
-    this.tone(ctx, 1046.5, ctx.currentTime, 0.03, 0.05, 0.002);
+    if (!ctx || !this.sfxGain) return;
+    this.playSine(ctx, this.sfxGain, 1174.66, ctx.currentTime, 0.004, 0.025, 0.08);
   }
 
-  /** 旧接口：打字机滴答。 */
   public playTick() {
     this.playUiTick();
   }
 
-  /** 旧接口：穿门和弦。 */
   public playGateChord() {
     this.playGatePass(1);
   }
 
   public dispose() {
-    if (this.ctx) {
-      this.ctx.close().catch(() => {});
-      this.ctx = null;
-    }
+    this.stopChimes();
+    this.masterGain = null;
     this.sfxGain = null;
+    this.ctx = null;
+    if (sharedAudioCtx && sharedAudioCtx.state !== 'closed') {
+      void sharedAudioCtx.close().catch(() => {});
+    }
+    sharedAudioCtx = null;
   }
 }
 
@@ -1272,9 +1308,6 @@ export class CosmosScene {
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x020408, 1);
-    // 电影级高光压制：多层 AdditiveBlending 叠加时不溢出成惨白；由最终的 PostFX 屏幕 pass 执行
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.88;
     this.container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -2953,15 +2986,9 @@ export class CosmosScene {
       6,
       dt,
     );
-    // 地表 Bloom 随复苏度动态平衡：花越多，泛光越弱、阈值越高，满复苏也不刺眼
-    const terraformK = THREE.MathUtils.clamp(this.terraformShown, 0, 1);
-    const baseBloom = this.surfaceShown
-      ? THREE.MathUtils.lerp(0.52, 0.32, terraformK)
-      : THREE.MathUtils.lerp(0.52, 0.34, this.galaxyBlend);
+    const baseBloom = this.surfaceShown ? 0.6 : THREE.MathUtils.lerp(0.52, 0.34, this.galaxyBlend);
     this.bloomPass.strength = baseBloom;
-    this.bloomPass.threshold = this.surfaceShown
-      ? THREE.MathUtils.lerp(0.38, 0.55, terraformK)
-      : THREE.MathUtils.lerp(0.38, 0.44, this.galaxyBlend);
+    this.bloomPass.threshold = this.surfaceShown ? 0.34 : THREE.MathUtils.lerp(0.38, 0.44, this.galaxyBlend);
     if (climax >= COMPLETE_IGNITE) {
       // 点亮后 0.3s 冲到 1.1，再回落到 0.52，最后回归当前视图基线
       const t = climax - COMPLETE_IGNITE;

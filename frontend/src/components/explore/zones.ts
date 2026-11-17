@@ -591,6 +591,52 @@ export function codexFor(documentId: string, zone: KnowledgeZone): CodexRow[] {
   }));
 }
 
+/** 纯享漫游沿途记忆星碑上的一张知识卡片。 */
+export interface ReviewCard {
+  zoneIndex: number;
+  chapter: string;
+  label: string;
+  text: string;
+  note?: string;
+}
+
+/**
+ * 汇总全部章节的通关要点，按章节顺序给出 `min`~`max` 张卡片：
+ * 光门论断优先，太多时等距抽样，太少时用星碑铭文、扫描结论和费曼要点补齐。
+ */
+export function reviewCardsFor(documentId: string, zones: KnowledgeZone[], min = 8, max = 12): ReviewCard[] {
+  const live = zones.map((zone, zoneIndex) => ({ zone, zoneIndex })).filter(({ zone }) => !zone.pending);
+  let cards: ReviewCard[] = live.flatMap(({ zone, zoneIndex }) =>
+    codexFor(documentId, zone).map((row) => ({ zoneIndex, chapter: zone.title, label: row.label, text: row.truth, note: row.note })),
+  );
+  if (cards.length > max) {
+    const pool = cards;
+    cards = Array.from({ length: max }, (_, i) => pool[Math.round((i * (pool.length - 1)) / (max - 1))]);
+  }
+  if (cards.length < min) {
+    const extras = live.map(({ zone, zoneIndex }) => {
+      const list: ReviewCard[] = [];
+      const push = (label: string, text?: string) => {
+        const t = text?.trim();
+        if (t && !cards.some((c) => c.text === t) && !list.some((c) => c.text === t)) {
+          list.push({ zoneIndex, chapter: zone.title, label, text: t });
+        }
+      };
+      push('星碑铭文', zone.monolithNote);
+      zone.intel?.conclusions.forEach((c) => push('扫描结论', c));
+      zone.feynmanBoss.keyPoints.forEach((k) => push('费曼要点', k));
+      return list;
+    });
+    for (let round = 0; cards.length < min && extras.some((l) => l.length > round); round += 1) {
+      extras.forEach((list) => {
+        if (cards.length < min && list[round]) cards.push(list[round]);
+      });
+    }
+    cards.sort((a, b) => a.zoneIndex - b.zoneIndex);
+  }
+  return cards;
+}
+
 const collectedKey = 'ai-tutor-gallery-collected-v1';
 const masterKey = (documentId: string) => `ai-tutor-master-badge-v1:${documentId}`;
 

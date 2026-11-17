@@ -60,7 +60,7 @@ export const StarGallery = () => {
 
   const enterSurface = (id: string, name: string) => {
     rememberDocument({ id, name });
-    navigate(`/explore?document=${id}`);
+    navigate(`/explore?document=${id}&tour=1`);
   };
 
   return (
@@ -68,7 +68,7 @@ export const StarGallery = () => {
       <div className="landing-ui on">
         <header className="landing-header">
           <Link className="landing-logo" to="/" aria-label="返回首页">
-            AI 导师
+            Starlore 知识星典
           </Link>
           <div className="gallery-nav">
             {touring ? (
@@ -170,7 +170,7 @@ export const StarGallery = () => {
                           进入轨道
                         </button>
                         <button type="button" className="btn" onClick={() => enterSurface(doc.id, doc.name || doc.id)}>
-                          降落地表
+                          地表纯享漫游
                         </button>
                       </div>
                     </article>

@@ -61,8 +61,8 @@ export const Landing = () => {
     <div className="landing-root">
       <div className={`landing-ui${uiOn ? ' on' : ''}`} id="ui">
         <header className="landing-header">
-          <Link className="landing-logo" to="/" aria-label="AI 导师">
-            AI 导师
+          <Link className="landing-logo" to="/" aria-label="Starlore 知识星典">
+            Starlore 知识星典
           </Link>
         </header>
 

@@ -60,6 +60,21 @@ export interface GateAnchor {
   fade: number;
 }
 
+/** 纯享漫游每帧推送的记忆星碑顶端屏幕投影，只包含视野前方 12~52m 有效区内的星碑。 */
+export interface MonolithAnchor {
+  /** 绑定的知识卡片序号，按航行顺序 0,1,2… 循环。 */
+  card: number;
+  side: GateSide;
+  x: number;
+  y: number;
+  /** 距离玩家的米数。 */
+  distance: number;
+  /** 0~1：进入有效区淡入、擦身而过前淡出。 */
+  weight: number;
+  /** 0~1：52m 处为 0，12m 处为 1，用来缩放卡片。 */
+  near: number;
+}
+
 export interface GateCrossEvent {
   gateId: string;
   index: number;
@@ -108,6 +123,8 @@ export interface CosmosOptions {
   /** 地表模式每帧推送左右光门的屏幕投影；离开地表时推送一次空数组。 */
   onGateAnchors?: (anchors: GateAnchor[]) => void;
   onGateCross?: (event: GateCrossEvent) => void;
+  /** 纯享漫游每帧推送记忆星碑投影；没有星碑时推送一次空数组。 */
+  onMonolithAnchors?: (anchors: MonolithAnchor[]) => void;
 }
 
 const BASE_FOV = 50;
@@ -134,6 +151,18 @@ const GATE_Y = GATE_HEIGHT / 2 + 0.15;
 const SHOCKWAVE_SECONDS = 2.6;
 const SHOCKWAVE_RADIUS = 80;
 const FIELD_SPAN = 220;
+// 纯享漫游的记忆星碑：沿航道两侧花丛左右错落，循环向前铺设
+const MONOLITH_X = 7.5;
+const MONOLITH_GAP = 30;
+const MONOLITH_POOL = 6;
+const MONOLITH_FIRST = 44;
+const MONOLITH_HEIGHT = 4.6;
+const MONOLITH_NEAR = 12;
+const MONOLITH_FAR = 52;
+/** 星碑落到相机身后这么远才回收到队尾。 */
+const MONOLITH_RECYCLE = 16;
+/** 纯享漫游放慢滑行，卡片在有效区停留约 4.5s，读得完。 */
+const TOUR_SPEED_SCALE = 0.55;
 const SURFACE_DUST_ALPHA = 0.22;
 const CLIMAX_SECONDS = 1.5;
 const BASE_LIGHT = new THREE.Vector3(0.55, 0.35, 0.75).normalize();
@@ -713,6 +742,21 @@ const uvVertexShader = /* glsl */ `
   }
 `;
 
+/** 记忆星碑光柱：底部透明、顶端趋白，一道能量缓缓上行。 */
+const monolithFragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  uniform float uTime;
+  uniform float uMotion;
+  varying vec2 vUv;
+  void main() {
+    float rise = pow(vUv.y, 1.6);
+    float scan = 1.0 - uMotion * 0.22 * (0.5 + 0.5 * sin(vUv.y * 22.0 - uTime * 2.2));
+    vec3 col = mix(uColor, vec3(1.0, 0.98, 0.94), rise * 0.55);
+    gl_FragColor = vec4(col, uOpacity * (0.12 + 0.88 * rise) * scan);
+  }
+`;
+
 // ============================================================================
 // 4. Web Audio：生成式宇宙风铃（纯正弦，无噪声缓冲 / 无锯齿 / 无持续低频）
 // ============================================================================
@@ -1009,6 +1053,17 @@ interface SurfaceGate {
   fadeT: number;
 }
 
+interface SurfaceMonolith {
+  group: THREE.Group;
+  /** 航行顺序号，决定左右、高度与绑定的卡片。 */
+  seq: number;
+  z: number;
+  top: number;
+  side: GateSide;
+  mats: THREE.ShaderMaterial[];
+  tipMat: THREE.MeshBasicMaterial;
+}
+
 const GATE_SIDES: GateSide[] = ['left', 'right'];
 
 const GLOW = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false } as const;
@@ -1236,6 +1291,10 @@ export class CosmosScene {
   private surfaceRoll = 0;
   private rollQuat = new THREE.Quaternion();
   private gateAnchorsEmpty = true;
+  private monoliths: SurfaceMonolith[] = [];
+  private monolithCount = 0;
+  private monolithBase = 0;
+  private monolithAnchorsEmpty = true;
   private surfaceU = {
     uTime: { value: 0 },
     uTravel: { value: 0 },
@@ -1257,6 +1316,7 @@ export class CosmosScene {
   private onZoneAnchors?: (anchors: ZoneAnchor[]) => void;
   private onGateAnchors?: (anchors: GateAnchor[]) => void;
   private onGateCross?: (event: GateCrossEvent) => void;
+  private onMonolithAnchors?: (anchors: MonolithAnchor[]) => void;
 
   constructor(
     root: HTMLElement,
@@ -1288,6 +1348,7 @@ export class CosmosScene {
       this.onZoneAnchors = arg2.onZoneAnchors;
       this.onGateAnchors = arg2.onGateAnchors;
       this.onGateCross = arg2.onGateCross;
+      this.onMonolithAnchors = arg2.onMonolithAnchors;
       if (arg2.skipIntro) {
         this.introProgress = 1;
         this.introCompleted = true;
@@ -1747,10 +1808,12 @@ export class CosmosScene {
         | 'onZoneAnchors'
         | 'onGateAnchors'
         | 'onGateCross'
+        | 'onMonolithAnchors'
       >
     >,
   ) {
     if ('onGateAnchors' in partial) this.onGateAnchors = partial.onGateAnchors;
+    if ('onMonolithAnchors' in partial) this.onMonolithAnchors = partial.onMonolithAnchors;
     if ('onGateCross' in partial) this.onGateCross = partial.onGateCross;
     if (partial.onAnchors) this.onAnchors = partial.onAnchors;
     if (partial.onPlanetClick) this.onPlanetClick = partial.onPlanetClick;
@@ -1924,6 +1987,15 @@ export class CosmosScene {
     this.finaleTarget = 0;
   }
 
+  /** 纯享漫游：沿航道两侧循环铺设记忆星碑，依次绑定 `count` 张知识卡片；传 0 撤掉。 */
+  public setSurfaceMonoliths(count: number) {
+    this.monolithCount = Math.max(0, Math.floor(count));
+    if (this.monolithCount === 0) return;
+    this.ensureSurfaceWorld();
+    if (this.monoliths.length === 0) this.createMonoliths();
+    this.layoutMonoliths();
+  }
+
   /** React 自行判题时调用；场景已自动判定过的光门会被忽略。 */
   public resolveSurfaceGate(gateId: string, correct: boolean) {
     const gate = this.gates.find((g) => g.id === gateId);
@@ -1985,6 +2057,8 @@ export class CosmosScene {
     this.surfaceU.uPlanetColor.value.set(options.planetColor ?? (s ? (s.uColorA.value as THREE.Color) : 0x7ee0d6));
     this.surfaceU.uAccentColor.value.set(options.accentColor ?? (s ? (s.uColorAccent.value as THREE.Color) : 0xf4c98b));
     this.setSurfaceGates(this.surfaceTour ? [] : options.gates ?? []);
+    if (this.surfaceTour) this.layoutMonoliths();
+    else this.monolithCount = 0;
   }
 
   private beginDive() {
@@ -2358,7 +2432,8 @@ export class CosmosScene {
       : THREE.MathUtils.damp(this.finaleRise, this.finaleTarget, 1.1, dt);
     if (t >= 1) {
       const prevZ = this.playerZ;
-      this.playerZ -= SURFACE_SPEED * this.timeScale * (1 - 0.7 * this.finaleRise) * dt;
+      const cruise = this.surfaceTour ? TOUR_SPEED_SCALE : 1;
+      this.playerZ -= SURFACE_SPEED * cruise * this.timeScale * (1 - 0.7 * this.finaleRise) * dt;
       if (next && prevZ > next.z && this.playerZ <= next.z) this.crossGate(next);
     }
     // 变道用真实时间，子弹时间里也跟手
@@ -2369,6 +2444,7 @@ export class CosmosScene {
 
     this.updateTerraform(dt);
     this.updateGates(dt, next, approach);
+    this.updateMonoliths();
 
     const u = this.surfaceU;
     u.uTime.value = this.surfaceTime;
@@ -2512,6 +2588,122 @@ export class CosmosScene {
           : THREE.MathUtils.damp(u.uOpacity.value as number, base * dim, this.reducedMotion ? 4 : 12, dt);
       });
     }
+  }
+
+  private createMonoliths() {
+    const world = this.surfaceWorld;
+    if (!world) return;
+    const bodyGeo = new THREE.CylinderGeometry(0.11, 0.2, MONOLITH_HEIGHT, 6, 1, true);
+    bodyGeo.translate(0, MONOLITH_HEIGHT / 2, 0);
+    const beamGeo = new THREE.CylinderGeometry(0.42, 0.55, MONOLITH_HEIGHT * 1.08, 10, 1, true);
+    beamGeo.translate(0, (MONOLITH_HEIGHT * 1.08) / 2, 0);
+    const tipGeo = new THREE.OctahedronGeometry(0.26, 0);
+    for (let i = 0; i < MONOLITH_POOL; i += 1) {
+      const makeMat = () =>
+        new THREE.ShaderMaterial({
+          vertexShader: uvVertexShader,
+          fragmentShader: monolithFragmentShader,
+          uniforms: {
+            uColor: this.surfaceU.uPlanetColor,
+            uTime: this.surfaceU.uTime,
+            uOpacity: { value: 0 },
+            uMotion: { value: this.reducedMotion ? 0 : 1 },
+          },
+          side: THREE.DoubleSide,
+          ...GLOW,
+        });
+      const bodyMat = makeMat();
+      const beamMat = makeMat();
+      const tipMat = new THREE.MeshBasicMaterial({ color: 0xfff8ec, opacity: 0, ...GLOW });
+      const tip = new THREE.Mesh(tipGeo, tipMat);
+      tip.name = 'tip';
+      tip.scale.set(0.8, 1.5, 0.8);
+      const group = new THREE.Group();
+      group.add(new THREE.Mesh(beamGeo, beamMat), new THREE.Mesh(bodyGeo, bodyMat), tip);
+      group.visible = false;
+      group.renderOrder = 2;
+      world.add(group);
+      this.monoliths.push({ group, seq: i, z: 0, top: MONOLITH_HEIGHT, side: 'left', mats: [bodyMat, beamMat], tipMat });
+    }
+  }
+
+  private layoutMonoliths() {
+    this.monolithBase = this.playerZ - MONOLITH_FIRST;
+    this.monoliths.forEach((m, i) => {
+      m.seq = i;
+      this.placeMonolith(m);
+    });
+  }
+
+  /** 按顺序号摆放：偶数在左、奇数在右，横向和高度轻微错落。 */
+  private placeMonolith(m: SurfaceMonolith) {
+    const jitter = hash01(`monolith-${m.seq}`);
+    m.side = m.seq % 2 === 0 ? 'left' : 'right';
+    m.z = this.monolithBase - m.seq * MONOLITH_GAP;
+    const scaleY = 0.82 + jitter * 0.36;
+    m.top = MONOLITH_HEIGHT * scaleY + 0.45;
+    m.group.position.set((m.side === 'left' ? -1 : 1) * (MONOLITH_X + (jitter - 0.5) * 1.2), 0, m.z);
+    m.group.children.forEach((child) => {
+      if (child.name === 'tip') child.position.y = m.top - 0.1;
+      else child.scale.y = scaleY;
+    });
+  }
+
+  private updateMonoliths() {
+    const show = this.surfaceTour && this.monolithCount > 0;
+    for (const m of this.monoliths) {
+      if (!show) {
+        m.group.visible = false;
+        continue;
+      }
+      while (this.playerZ - m.z < -MONOLITH_RECYCLE) {
+        m.seq += MONOLITH_POOL;
+        this.placeMonolith(m);
+      }
+      const d = this.playerZ - m.z;
+      const far = 1 - THREE.MathUtils.smoothstep(d, MONOLITH_FAR + 50, MONOLITH_FAR + 110);
+      const behind = d < 0 ? 1 - THREE.MathUtils.smoothstep(-d, 2, MONOLITH_RECYCLE - 2) : 1;
+      const opacity = far * behind;
+      m.group.visible = opacity > 0.01;
+      m.mats[0].uniforms.uOpacity.value = 0.85 * opacity;
+      m.mats[1].uniforms.uOpacity.value = 0.22 * opacity;
+      m.tipMat.opacity = 0.9 * opacity;
+      const tip = m.group.children[2];
+      if (tip && !this.reducedMotion) tip.rotation.y = this.surfaceTime * 0.8 + m.seq;
+    }
+  }
+
+  private emitMonolithAnchors() {
+    if (!this.onMonolithAnchors) return;
+    const active = this.surfaceShown && this.diveT >= 1 && this.surfaceTour && this.monolithCount > 0;
+    if (!active) {
+      if (!this.monolithAnchorsEmpty) this.onMonolithAnchors([]);
+      this.monolithAnchorsEmpty = true;
+      return;
+    }
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const anchors: MonolithAnchor[] = [];
+    for (const m of this.monoliths) {
+      const d = this.playerZ - m.z;
+      if (d < MONOLITH_NEAR - 6 || d > MONOLITH_FAR + 6) continue;
+      this.ndc.set(m.group.position.x, m.top + 0.3, m.z).add(SURFACE_ORIGIN).project(this.camera);
+      if (this.ndc.z <= -1 || this.ndc.z >= 1) continue;
+      const weight =
+        THREE.MathUtils.smoothstep(d, MONOLITH_NEAR - 6, MONOLITH_NEAR + 2) *
+        (1 - THREE.MathUtils.smoothstep(d, MONOLITH_FAR - 6, MONOLITH_FAR + 6));
+      anchors.push({
+        card: m.seq % this.monolithCount,
+        side: m.side,
+        x: (this.ndc.x * 0.5 + 0.5) * width,
+        y: (-this.ndc.y * 0.5 + 0.5) * height,
+        distance: d,
+        weight,
+        near: 1 - THREE.MathUtils.smoothstep(d, MONOLITH_NEAR, MONOLITH_FAR),
+      });
+    }
+    this.monolithAnchorsEmpty = anchors.length === 0;
+    this.onMonolithAnchors(anchors);
   }
 
   private emitGateAnchors() {
@@ -3006,6 +3198,7 @@ export class CosmosScene {
     this.emitAnchors();
     this.onZoneAnchors?.(this.getZoneAnchors());
     this.emitGateAnchors();
+    this.emitMonolithAnchors();
 
     const normalizedSpeed = THREE.MathUtils.clamp(Math.abs(this.scrollVelocity) * 0.55, 0.0, 1.0);
     const fx = this.postFXPass.uniforms;

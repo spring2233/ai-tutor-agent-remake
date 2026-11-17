@@ -29,12 +29,14 @@ interface Props {
   zones: KnowledgeZone[];
   gateSets: TwinGate[][];
   reduced: boolean;
+  /** 纯享漫游中只保留底部迷你胶囊。 */
+  touring: boolean;
+  onTour: () => void;
 }
 
 /** 100% 同步率结算全息舱：收录进鉴赏室（主）或挑战费曼终极试炼（可选）。 */
-export const SurfaceFinale = ({ scene, documentId, planetName, zones, gateSets, reduced }: Props) => {
+export const SurfaceFinale = ({ scene, documentId, planetName, zones, gateSets, reduced, touring, onTour }: Props) => {
   const [collected, setCollected] = useState(() => isCollected(documentId));
-  const [touring, setTouring] = useState(false);
   const [trial, setTrial] = useState(false);
   const [master, setMaster] = useState(() => hasMasterBadge(documentId));
 
@@ -46,7 +48,7 @@ export const SurfaceFinale = ({ scene, documentId, planetName, zones, gateSets, 
   const tour = () => {
     if (!collected) collect();
     scene.startSurfaceTour();
-    setTouring(true);
+    onTour();
     setTrial(false);
   };
 

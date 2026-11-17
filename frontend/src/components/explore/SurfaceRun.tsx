@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react';
 import type { CosmosScene, GateCrossEvent, GateSide, SurfaceGateSpec } from '../../cosmos/CosmosScene2';
 import { SurfaceFinale } from './SurfaceFinale';
 import { HoloCompanion, type CompanionReaction } from './HoloCompanion';
+import { TourReview } from './TourReview';
 import { codexFor, gatesFor, syncRate, type CodexRow, type KnowledgeZone, type TwinGate, type ZoneSave } from './zones';
 
 const CALIBRATION_MS = 3000;
@@ -65,14 +66,17 @@ interface Props {
   scene: CosmosScene;
   documentId: string;
   planetName: string;
+  planetIntro?: string;
   save: ZoneSave;
   update: (fn: (prev: ZoneSave) => ZoneSave) => void;
   reduced: boolean;
+  /** 从鉴赏室进入：已全部复苏时跳过结算舱，直接纯享漫游。 */
+  autoTour?: boolean;
   onExit: () => void;
 }
 
 /** 地表穿门：极简全屏驾驶 HUD。答对推进区域，答错弹守门人认知校准并在本区末尾重排一次。 */
-export const SurfaceRun = ({ scene, documentId, planetName, save, update, reduced, onExit }: Props) => {
+export const SurfaceRun = ({ scene, documentId, planetName, planetIntro, save, update, reduced, autoTour, onExit }: Props) => {
   const zones = save.zones;
   const gateSets = useMemo(() => zones.map((z) => gatesFor(documentId, z)), [documentId, zones]);
   const gateSetsRef = useRef(gateSets);
@@ -83,6 +87,7 @@ export const SurfaceRun = ({ scene, documentId, planetName, save, update, reduce
   const [stage, setStage] = useState<Stage>(() =>
     save.zones.every((z) => z.status === 'completed') ? 'settle' : 'flight',
   );
+  const [touring, setTouring] = useState(() => Boolean(autoTour) && save.zones.every((z) => z.status === 'completed'));
   const [queue, setQueue] = useState<QueuedGate[]>([]);
   const queueRef = useRef<QueuedGate[]>([]);
   const [calib, setCalib] = useState<Calibration | null>(null);
@@ -338,7 +343,7 @@ export const SurfaceRun = ({ scene, documentId, planetName, save, update, reduce
     let startX = 0;
     let wheelAt = 0;
     const isUi = (target: EventTarget | null) =>
-      target instanceof HTMLElement && Boolean(target.closest('button, a, textarea, input, .surface-panel, .surface-calib, .surface-hud'));
+      target instanceof HTMLElement && Boolean(target.closest('button, a, textarea, input, .surface-panel, .surface-calib, .surface-hud, .tour-codex'));
     const down = (e: PointerEvent) => {
       if (e.button !== 0 || isUi(e.target)) return;
       active = true;
@@ -481,6 +486,19 @@ export const SurfaceRun = ({ scene, documentId, planetName, save, update, reduce
           planetName={planetName}
           zones={zones}
           gateSets={gateSets}
+          reduced={reduced}
+          touring={touring}
+          onTour={() => setTouring(true)}
+        />
+      ) : null}
+
+      {touring ? (
+        <TourReview
+          scene={scene}
+          documentId={documentId}
+          planetName={planetName}
+          planetIntro={planetIntro}
+          zones={zones}
           reduced={reduced}
         />
       ) : null}

@@ -559,6 +559,15 @@ export const ZoneExplorer = () => {
   const phase = (zone && save?.phases[zone.id]) || 0;
   const allDone = zones.length > 0 && zones.every((z) => z.status === 'completed');
 
+  // 从星界鉴赏室带 ?tour=1 进来：已全部复苏就直接降落进地表纯享漫游
+  const tourParam = params.get('tour') === '1';
+  const autoFlown = useRef(false);
+  useEffect(() => {
+    if (!tourParam || autoFlown.current || !scene || !loaded || !allDone) return;
+    autoFlown.current = true;
+    setFlying(true);
+  }, [tourParam, scene, loaded, allDone]);
+
   if (!documentId) {
     return (
       <div className="landing-root orbit-stage explore-stage">
@@ -579,9 +588,11 @@ export const ZoneExplorer = () => {
           scene={scene}
           documentId={documentId}
           planetName={currentDoc?.planetName || documentName}
+          planetIntro={currentDoc?.themeSummary}
           save={save}
           update={update}
           reduced={reduced}
+          autoTour={tourParam}
           onExit={() => setFlying(false)}
         />
       </div>
@@ -595,7 +606,7 @@ export const ZoneExplorer = () => {
       <div className="landing-ui on">
         <header className="landing-header">
           <Link className="landing-logo" to="/chat" aria-label="返回星系">
-            AI 导师
+            Starlore 知识星典
           </Link>
           <div className={`sync-meter hud-glass${syncFlash ? ' flash' : ''}`}>
             <span className="sync-label">星球同步率</span>

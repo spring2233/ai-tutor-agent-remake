@@ -92,8 +92,8 @@ export const GalaxyArchive = () => {
       <div className={`landing-ui${introDone ? ' on' : ''}`}>
         <div className="star-map">
           <div className="star-map-bar">
-            <Link className="landing-logo" to="/" aria-label="AI 导师">
-              AI 导师
+            <Link className="landing-logo" to="/" aria-label="Starlore 知识星典">
+              Starlore 知识星典
             </Link>
             <button className="btn hud-glass" type="button" onClick={openUpload} disabled={uploading}>
               {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}

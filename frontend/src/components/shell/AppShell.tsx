@@ -5,7 +5,7 @@ export const AppShell = () => {
     <div className="app-container">
       <header className="hud-bar">
         <Link className="hud-logo" to="/" aria-label="回到星空首页">
-          AI 导师
+          Starlore 知识星典
         </Link>
         <nav className="hud-nav" aria-label="功能">
           <NavLink to="/explore" className={({ isActive }) => `hud-link${isActive ? ' active' : ''}`}>

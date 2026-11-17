@@ -14,7 +14,7 @@ export const OrbitStage = ({ children }: { children: ReactNode }) => {
       <div className="landing-ui on">
         <header className="landing-header">
           <Link className="landing-logo" to="/chat" aria-label="返回星系">
-            AI 导师
+            Starlore 知识星典
           </Link>
           <OrbitModes documentId={documentId} />
         </header>

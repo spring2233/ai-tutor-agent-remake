@@ -224,3 +224,6 @@ model.safetensors
 
 venv/
 .env
+
+# Internal development log. Keep the local file; do not publish it.
+PROJECT_MEMORY.md

@@ -1,3 +1,7 @@
+# 一局地表探索的章节数。模型按这个范围规划，backend 用同一个数做硬截断。
+MIN_PLAY_ZONES = 4
+MAX_PLAY_ZONES = 6
+
 _PLANET_KEYS = """- "planetName": a poetic sci-fi Chinese planet name tailored to this document's subject, in the form "前缀·意象后缀" (for example, Transformer -> "矩心·自注意力界", Thermodynamics -> "卡诺·熵增荒原"), at most 10 characters
 - "themeCategory": one of "ai_cs" (AI/CS/engineering), "physics_math" (physics/math/natural sciences), "bio_med" (biology/medicine/chemistry), or "humanities" (humanities/social sciences/business/arts)
 - "themeSummary": one concise sentence summarizing the document's core knowledge theme, at most 45 characters
@@ -65,11 +69,12 @@ You turn a study document into the surface map of a knowledge planet.
 
 Document name: {name}
 
-Split the document into 4 to 6 knowledge zones, in reading order. Each zone is one chapter or theme.
+Split the document into """ + f"{MIN_PLAY_ZONES} to {MAX_PLAY_ZONES}" + """ knowledge zones, in reading order. Each zone is one chapter or theme.
+Never output more than """ + str(MAX_PLAY_ZONES) + """ zones.
 Every zone has three stages: a signal check, a logic circuit, and a Feynman guardian.
 
 Return ONLY a valid JSON object with keys:
-""" + _PLANET_KEYS + """- "zones": a list of 4 to 6 zones
+""" + _PLANET_KEYS + """- "zones": a list of """ + f"{MIN_PLAY_ZONES} to {MAX_PLAY_ZONES}" + """ zones
 """ + _ZONE_SCHEMA + """
 Context:
 {context}
@@ -81,10 +86,11 @@ The learner should start exploring within seconds, so this call builds only the 
 
 Document name: {name}
 
-Plan exactly 4 knowledge zones, in reading order. Each zone is one chapter or theme.
+Plan """ + f"{MIN_PLAY_ZONES} to {MAX_PLAY_ZONES}" + """ knowledge zones, in reading order. Each zone is one chapter or theme.
+Never plan more than """ + str(MAX_PLAY_ZONES) + """ zones.
 
 Return ONLY a valid JSON object with keys:
-""" + _PLANET_KEYS + """- "outline": a list of exactly 4 items, one per zone in order, each with "title" (at most 12 characters) and "summary" (one sentence)
+""" + _PLANET_KEYS + """- "outline": a list of """ + f"{MIN_PLAY_ZONES} to {MAX_PLAY_ZONES}" + """ items, one per zone in order, each with "title" (at most 12 characters) and "summary" (one sentence)
 - "zones": a list with exactly 1 zone, the full data for the first outline item
 """ + _ZONE_SCHEMA + """
 Context:

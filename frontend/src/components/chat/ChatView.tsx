@@ -43,6 +43,57 @@ const CHAT_HISTORY_KEY = 'ai-tutor-chat-history-v2';
 const CURRENT_DOCUMENT_KEY = 'ai-tutor-current-document-v2';
 const CURRENT_DOCUMENT_NAME_KEY = 'ai-tutor-current-document-name-v2';
 
+function readStoredHistory(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(CHAT_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistoryToStorage(history: ChatSession[]) {
+  try {
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
+  } catch (error) {
+    console.error('Error saving chat history:', error);
+  }
+}
+
+function activeDocumentId(queryId: string | null): string | null {
+  if (queryId) return queryId;
+  try {
+    return localStorage.getItem(CURRENT_DOCUMENT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function chatsForDocument(history: ChatSession[], documentId: string | null): ChatSession[] {
+  if (!documentId) return [];
+  return history
+    .filter((chat) => chat.documentId === documentId && (chat.messages?.length || 0) > 0)
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+}
+
+function restoreFor(documentId: string | null) {
+  const history = readStoredHistory();
+  const latest = chatsForDocument(history, documentId)[0] || null;
+  let name = latest?.documentName || null;
+  if (!name && documentId) {
+    try {
+      if (localStorage.getItem(CURRENT_DOCUMENT_KEY) === documentId) {
+        name = localStorage.getItem(CURRENT_DOCUMENT_NAME_KEY);
+      }
+    } catch {
+      name = null;
+    }
+  }
+  return { history, latest, name };
+}
+
 function formatDuration(totalMs?: number) {
   if (totalMs == null) {
     return '—';
@@ -66,7 +117,10 @@ function formatTokens(metrics: NonNullable<Message['metrics']>) {
 export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const documentQuery = params.get('document');
+  const [messages, setMessages] = useState<Message[]>(
+    () => restoreFor(activeDocumentId(documentQuery)).latest?.messages || [],
+  );
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [inChat, setInChat] = useState(embedded);
@@ -76,23 +130,16 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
    * Restore the currently selected PDF immediately.
    * This survives navigation between features.
    */
-  const [documentId, setDocumentId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(CURRENT_DOCUMENT_KEY);
-    } catch {
-      return null;
-    }
-  });
-  const [documentName, setDocumentName] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(CURRENT_DOCUMENT_NAME_KEY);
-    } catch {
-      return null;
-    }
-  });
-
-  const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [documentId, setDocumentId] = useState<string | null>(() => activeDocumentId(documentQuery));
+  const [documentName, setDocumentName] = useState<string | null>(
+    () => restoreFor(activeDocumentId(documentQuery)).name,
+  );
+  const [chatHistory, setChatHistory] = useState<ChatSession[]>(
+    () => restoreFor(activeDocumentId(documentQuery)).history,
+  );
+  const [currentChatId, setCurrentChatId] = useState<string | null>(
+    () => restoreFor(activeDocumentId(documentQuery)).latest?.id || null,
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -108,45 +155,8 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
     );
   };
 
-  const getHistoryFromStorage = (): ChatSession[] => {
-    try {
-      const raw = localStorage.getItem(CHAT_HISTORY_KEY);
-
-      if (!raw) {
-        return [];
-      }
-
-      const parsed = JSON.parse(raw);
-
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.error(
-        'Error reading chat history:',
-        error
-      );
-
-      return [];
-    }
-  };
-
-  const saveHistoryToStorage = (
-    history: ChatSession[]
-  ) => {
-    try {
-      localStorage.setItem(
-        CHAT_HISTORY_KEY,
-        JSON.stringify(history)
-      );
-    } catch (error) {
-      console.error(
-        'Error saving chat history:',
-        error
-      );
-    }
-  };
-
   // =========================================================
-  // LOAD HISTORY WHEN CHAT PAGE OPENS
+  // LOAD THIS PLANET'S LAST CONVERSATION
   // =========================================================
 
   useEffect(() => {
@@ -156,39 +166,29 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
   }, [params]);
 
   useEffect(() => {
-    const history = getHistoryFromStorage();
-
-    setChatHistory(history);
-
-    /*
-     * IMPORTANT:
-     *
-     * We intentionally start with a NEW/FRESH chat
-     * whenever the Chat page is opened.
-     *
-     * Old chats remain in Chat History.
-     */
-    setMessages([]);
-    setCurrentChatId(null);
-
-    /*
-     * Restore the active PDF.
-     */
-    try {
-      const savedDocument = localStorage.getItem(
-        CURRENT_DOCUMENT_KEY
-      );
-
-      if (savedDocument) {
-        setDocumentId(savedDocument);
+    const id = activeDocumentId(documentQuery);
+    const restored = restoreFor(id);
+    setDocumentId(id);
+    setDocumentName(restored.name);
+    setChatHistory(restored.history);
+    setMessages(restored.latest?.messages || []);
+    setCurrentChatId(restored.latest?.id || null);
+    setInput('');
+    if (id) {
+      try {
+        localStorage.setItem(CURRENT_DOCUMENT_KEY, id);
+      } catch {
+        /* ignore quota or private-mode failures */
       }
-    } catch (error) {
-      console.error(
-        'Error restoring PDF:',
-        error
-      );
     }
-  }, []);
+    if (restored.name) {
+      try {
+        localStorage.setItem(CURRENT_DOCUMENT_NAME_KEY, restored.name);
+      } catch {
+        /* ignore quota or private-mode failures */
+      }
+    }
+  }, [documentQuery]);
 
   // =========================================================
   // SAVE CURRENT PDF
@@ -239,8 +239,7 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
     }
 
     try {
-      const existingHistory =
-        getHistoryFromStorage();
+      const existingHistory = readStoredHistory();
 
       const firstUserMessage =
         chatMessages.find(
@@ -634,8 +633,7 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
   ) => {
     e.stopPropagation();
 
-    const history =
-      getHistoryFromStorage();
+    const history = readStoredHistory();
 
     const updatedHistory =
       history.filter(
@@ -768,7 +766,12 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
               </p>
             </div>
             <div className="chat-toolbar-actions">
-              {embedded ? null : (
+              {embedded ? (
+                <button type="button" className="btn" onClick={handleNewChat}>
+                  <Plus size={16} />
+                  新对话
+                </button>
+              ) : (
                 <button type="button" className="btn" onClick={handleNewChat}>
                   <Library size={16} />
                   书架
@@ -788,6 +791,27 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
             </div>
           </div>
 
+          {embedded && chatsForDocument(chatHistory, documentId).length > 0 && (
+            <div className="chat-planet-log">
+              <span>本星问答</span>
+              {chatsForDocument(chatHistory, documentId).map((chat) => (
+                <span key={chat.id} className={`chat-planet-chip${currentChatId === chat.id ? ' active' : ''}`}>
+                  <button type="button" onClick={() => handleRestoreChat(chat)}>
+                    {chat.title}
+                  </button>
+                  <button
+                    type="button"
+                    className="chat-planet-chip-delete"
+                    title="删除这段问答"
+                    onClick={(event) => handleDeleteChat(event, chat.id)}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="chat-thread">
             {messages.length === 0 ? (
               <div className="hero" style={{ textAlign: 'center', margin: '2rem' }}>
@@ -795,7 +819,7 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
                 <h1>
                   问问 <span className="grad-text">这本书</span>
                 </h1>
-                <p style={{ margin: '1rem auto' }}>问题会基于你从书架打开的 PDF。</p>
+                <p style={{ margin: '1rem auto' }}>问过的内容会留在这颗星球上，下次打开还能接着看。</p>
                 {documentId && (
                   <div className="chat-doc-chip">
                     <FileIcon size={14} />
@@ -828,7 +852,7 @@ export const ChatView = ({ embedded = false }: { embedded?: boolean }) => {
                           {formatDuration(msg.metrics.total_ms)} · {formatTokens(msg.metrics)}
                         </span>
                       )}
-                      {msg.confidence !== undefined && (
+                      {msg.confidence !== undefined && msg.confidence !== null && (
                         <span className="chat-chip quiet">
                           <CheckCircle2 size={12} />
                           置信度： {msg.confidence}%

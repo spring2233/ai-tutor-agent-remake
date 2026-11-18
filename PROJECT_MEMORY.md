@@ -15,6 +15,8 @@
 - 问答路由：`full` 和 `partial` 用文档生成；`none` 才 MCP 搜索。评分 JSON 允许包在 Markdown 代码围栏里。来源：`app/graph.py`，状态：已制作；用户在 2026-10-17 认为改后的领域随机化摘要「比较准确」，状态：该次回答已确认，后续提问未再验收。
 - 回答用量：`/api/chat` 的 `metrics` 含 `total_ms` 和 prompt/completion/total tokens；聊天页在助手消息下显示。来源：`app/metrics.py`、`frontend/src/components/chat/ChatView.tsx`，状态：已制作待验收。
 - 上传文档现在用 12 位 id 存在 `uploads/` 和 `uploads/catalog.json`，不再用文件名当 id。切块按标题/段落，默认 2500 字、重叠 200，公式尽量不断开；上传同一请求里抽出知识单元到 `uploads/{id}.units.json`。`/api/zones` 优先用这份地图。来源：`app/rag/chunker.py`、`app/rag/knowledge_map.py`，状态：已制作待验收。旧的 Chroma 记录是否还在，本轮未再查询，状态：待确认。
+- 导师问答：问整份 PDF（主要讲什么、洞察、总结）时，不再只把最相似的 4 段交给模型。上下文是全书知识地图，加上按阅读顺序的原文（约 6 万字以内为全文，更长则从开头覆盖到结尾）。具体问题仍用检索片段，并带上知识地图。`partial` 的来源标成上传文档。来源：`app/rag/document_context.py`、`app/graph.py`，状态：已制作待验收。已有 PDF 不用重新上传。
+- 星球问答会按文档留在浏览器 `ai-tutor-chat-history-v2`。再打开这颗星球的知识问答，会回到最近一次对话；「新对话」另开一段，旧的仍可从「本星问答」点回去。来源：`frontend/src/components/chat/ChatView.tsx`，状态：已制作待验收。
 - 前端：`App` 里常驻单例 WebGL（`CosmosProvider`，路由切换不 dispose）。`/` 花谷英雄页；`/chat` 星系星图（PDF 程序化星球 + DOM 标签）；轨道态只有 `/explore` 星球探索与 `/ask` 知识问答（`/quest` 重定向到 `/explore`，闪卡与记忆配对已从界面移除）。`/layout` 仍独立。来源：2026-11-16 架构做减法，状态：已制作待验收。
 - Agent 说明：根目录 `AGENTS.md` 只做入口；细节在 `frontend/AGENTS.md`、`app/AGENTS.md`、`frontend/src/components/quest/AGENTS.md`。`AGENTS2.md` 与根目录空的 `graph.py`、`main.py`、旧脚本 `test_groq.py` 已于 2026-11-17 按用户要求从仓库删除（根目录精简）。来源：2026-11-15 整理，状态：已制作。
 
@@ -37,6 +39,10 @@
 
 - 聊天回答下的耗时和 token 标签。token 是评分与生成两次调用之和。用户尚未回复是否看到。
 - 生成提示要求网页内容带 `Web result`，且不能把网页说成文档内容。来源：`app/prompts/generator_prompt.py`、`mcp_server/web_search_node.py`。只验收过一次主题摘要，没有验收「文档里没有的问题」这条路径。
+- 上传浮层（`/?panel=upload`）重做为居中 640px 毛玻璃舱 + 四角 HUD 角标，原灰白 `glass-close` 换成顶栏「← 返回星海」胶囊（`orbit-mode hud-glass`）。`Bookshelf` 的 upload 分支是可拖拽/点击的「原恒星」引力区，上传中显示三阶段凝聚进度（阶段按 1.6s / 4.2s 计时推进，接口返回后才点亮完成，停 0.9s 跳 `/chat?spawn=<id>`），`/api/upload` 调用未改。来源：本次对话改动。用户要求不跑终端与浏览器，三进程复现和拖拽实测都没做。
+- 可玩章节上限是 6，和上传抽出的知识单元不是一回事。46 个单元只作为区域规划的素材；一局是 4–6 章，每章最多 4 道光门。章数改 `app/prompts/zone_prompt.py` 的 `MAX_PLAY_ZONES`（2026-11-18 起首区规划也按 4–6 章，不再写死 4 章）。已有星球的区域存在浏览器 `ai-tutor-zones-v1:<id>`，改上限后要重新扫描才生效。
+- 上传慢：2026-11-18 uvicorn 日志里一份 13 页 PDF 的知识单元抽取是串行 Qwen 调用，每次 53–100s，6 次后仍未返回。已改为并发 + 关思考 + 输出上限 6144（见 `app/AGENTS.md`）。已核实（2026-11-18）：当前 DashScope 模型默认会思考，接受 `enable_thinking=false`；同一份 13 页 PDF（29 块 → 12 段），旧流程上传总计约 11 分 45 秒、存 34 个单元，新抽取 22.3 秒、46 个单元，无重试告警。`tests/test_knowledge_map.py`、`tests/test_library.py` 通过。
+- 导师问答的全书上下文（知识地图 + 按顺序原文）已写入代码。2026-11-18 用已上传的 `2603.16666v2.pdf`（13 页、29 段）问「主要讲解了哪些知识，insight 是什么」：上下文约 6 万字且标明全文已包含，回答覆盖背景、方法、实验和洞察，来源标为该 PDF。具体问题这条路径没有再问一次。
 - `requirements.txt` 增加 `sentence-transformers==6.1.0`。`langchain-groq` 仍未写入该文件；当前 `.env` 没有 Groq key，所以启动不导入它。
 
 ## 踩过的坑
@@ -96,3 +102,5 @@
 26. 2026-11-17，前端：去掉 Fmaj9 持续 Pad（含 174/220Hz 长音，笔记本上会成底噪），改成单例 `AudioContext` + 生成式五声风铃（261.63–783.99Hz 短正弦）和明亮交互短音。运行时入口是 `CosmosScene2.ValleyAudioController`；闲置的 `CosmosScene.ts` 里同类长音一并删掉。用户要求不跑终端与浏览器。状态：已制作待验收。
 27. 2026-11-17，前端（用户反馈「太暗」「闯关声音像低频噪音」「门上文字乱跑」「星球名卡片挡背景」）：撤回第 24 条的 ACES/曝光、PostFX tonemapping include、花海 alpha 封顶与亮度上限、动态 Bloom，恢复 0.6/0.34；闯关音效 `sfxGain` 0.45→0.9，过门琶音上移到 C6–C7，错门 E5→B4，并加 HMR dispose 关闭旧 `AudioContext`（旧 Pad 可能因热更新残留，需要整页刷新一次）；`SurfaceRun` 题目标签固定在屏幕左右，不再每帧跟随投影；`galaxy.css` 的 `.star-label-copy` 去掉底色、边框与毛玻璃，改文字阴影。未运行终端、构建与浏览器，只过了编辑器 lint。状态：已制作待验收。
 28. 2026-11-17，前端：品牌改名「Starlore 知识星典」（页面标题与各页 logo；localStorage 键不动）。通关后地表纯享漫游新增 3D「记忆星碑」（`CosmosScene2.setSurfaceMonoliths` + `onMonolithAnchors`，漫游速度降到 55%）与 2D 随距离缩放的知识卡片（`TourReview.tsx`、`zones.reviewCardsFor`），以及 M 键「全息星典总览」毛玻璃面板；鉴赏室「地表纯享漫游」改为 `/explore?document=<id>&tour=1` 直接降落漫游。用户要求不跑终端与浏览器，只过了编辑器 lint。状态：已制作待验收。
+29. 2026-11-18，问答：用户指出导师只能根据切块回答，无法概括整份 PDF。问全书时改为知识地图 + 按阅读顺序的原文，具体问题在检索片段外附上知识地图。状态：已制作待验收。
+30. 2026-11-18，问答记录：再打开同一颗星球会回到最近一次问答，旧对话留在「本星问答」。状态：已制作待验收。

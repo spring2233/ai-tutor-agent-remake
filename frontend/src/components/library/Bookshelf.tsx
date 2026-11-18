@@ -1,6 +1,17 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { Loader2, Swords, Trash2, Upload } from 'lucide-react';
 import { apiErrorMessage } from '../../api/httpError';
+
+const CONDENSE_STAGES = [
+  { code: 'STAGE 01', label: '提取文档语义切片' },
+  { code: 'STAGE 02', label: '测绘星球地表知识区域' },
+  { code: 'STAGE 03', label: '注入星核能量并点亮坐标' },
+];
+const STAGE_TWO_AT_MS = 1600;
+const STAGE_THREE_AT_MS = 4200;
+const IGNITE_HOLD_MS = 900;
+
+const isPdf = (file: File) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 
 export interface LibraryDocument {
   id: string;
@@ -39,6 +50,19 @@ export const Bookshelf = ({
   const [isUploading, setIsUploading] = useState(false);
   const [reading, setReading] = useState<LibraryDocument | null>(null);
   const [error, setError] = useState('');
+  const [dragging, setDragging] = useState(false);
+  const [stage, setStage] = useState(0);
+  const [ignited, setIgnited] = useState(false);
+  const [pendingName, setPendingName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const stageTimers = useRef<number[]>([]);
+
+  const clearStageTimers = () => {
+    stageTimers.current.forEach((id) => window.clearTimeout(id));
+    stageTimers.current = [];
+  };
+
+  useEffect(() => clearStageTimers, []);
 
   const loadDocuments = async () => {
     setIsLoading(true);
@@ -62,22 +86,32 @@ export const Bookshelf = ({
     loadDocuments();
   }, [refreshToken]);
 
-  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) {
-      return;
-    }
-
+  const uploadFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     setIsUploading(true);
     setError('');
+    if (variant === 'upload') {
+      clearStageTimers();
+      setPendingName(file.name);
+      setIgnited(false);
+      setStage(1);
+      stageTimers.current = [
+        window.setTimeout(() => setStage(2), STAGE_TWO_AT_MS),
+        window.setTimeout(() => setStage(3), STAGE_THREE_AT_MS),
+      ];
+    }
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.detail || data.message || '上传失败');
+      }
+      if (variant === 'upload') {
+        clearStageTimers();
+        setStage(3);
+        setIgnited(true);
+        await new Promise((resolve) => window.setTimeout(resolve, IGNITE_HOLD_MS));
       }
       onUploaded(
         data.document_id
@@ -86,10 +120,41 @@ export const Bookshelf = ({
       );
       await loadDocuments();
     } catch (err) {
+      clearStageTimers();
+      setStage(0);
       setError(apiErrorMessage(err, '上传失败'));
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    uploadFile(file);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (isUploading) return;
+    event.dataTransfer.dropEffect = 'copy';
+    if (!dragging) setDragging(true);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    if (isUploading) return;
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!isPdf(file)) {
+      setError('只能投喂 PDF 典籍。');
+      return;
+    }
+    uploadFile(file);
   };
 
   const handleDelete = async (document: LibraryDocument) => {
@@ -123,6 +188,88 @@ export const Bookshelf = ({
     </div>
   );
 
+  if (variant === 'upload') {
+    return (
+      <div className="protostar">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          hidden
+          onChange={handleUpload}
+        />
+        <div className="protostar-head">
+          <span className="protostar-kicker">GENESIS // 新星创世舱</span>
+          <h2>
+            把 PDF 放进这条<span className="protostar-accent">星图</span>
+          </h2>
+        </div>
+
+        {stage === 0 ? (
+          <>
+            <button
+              type="button"
+              className={`protostar-zone${dragging ? ' is-drag' : ''}`}
+              onClick={() => inputRef.current?.click()}
+              onDragEnter={handleDragOver}
+              onDragOver={handleDragOver}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              aria-label="拖入或选择一份 PDF 上传"
+            >
+              <span className="protostar-ring outer" />
+              <span className="protostar-ring inner" />
+              <span className="protostar-core" />
+              <span className="protostar-title">
+                {dragging ? '释放以开始星体凝聚' : '投喂典籍 · 凝聚新星'}
+              </span>
+              <span className="protostar-hint">
+                {dragging ? 'RELEASE TO CONDENSE' : '拖入 PDF，或点击选择文件'}
+              </span>
+            </button>
+            <p className="protostar-foot">支持 PDF 文档 · 自动切分知识星域并生成专属守门人关卡</p>
+          </>
+        ) : (
+          <div className={`condense${ignited ? ' ignited' : ''}`} aria-live="polite">
+            <div className="condense-core" />
+            <p className="condense-file" title={pendingName}>
+              {pendingName}
+            </p>
+            <ol className="condense-stages">
+              {CONDENSE_STAGES.map((item, index) => {
+                const step = index + 1;
+                const state = ignited || stage > step ? 'done' : stage === step ? 'active' : 'idle';
+                return (
+                  <li key={item.code} className={`condense-stage ${state}`}>
+                    <div className="condense-row">
+                      <span className="condense-code">{item.code} //</span>
+                      <span className="condense-label">{item.label}</span>
+                      <span className="condense-state">
+                        {state === 'done' ? 'OK' : state === 'active' ? 'SYNC' : 'WAIT'}
+                      </span>
+                    </div>
+                    <span className="condense-bar">
+                      <i />
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="condense-status">
+              {ignited ? '新星已点亮 · 正在跃迁至星图' : '星体凝聚中，请保持舱门开启…'}
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <p className="protostar-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (reading) {
     return (
       <div className="reader-panel">
@@ -153,25 +300,17 @@ export const Bookshelf = ({
   return (
     <div className="shelf-page">
       <div className="hero">
-        <div className="eyebrow">{variant === 'upload' ? '上传' : '星图档案'}</div>
+        <div className="eyebrow">星图档案</div>
         <h1>
-          {variant === 'upload' ? (
-            <>把 PDF 放进这条<span className="grad-text">星图</span></>
-          ) : (
-            <>文档停泊在这条<span className="grad-text">星图</span></>
-          )}
+          文档停泊在这条<span className="grad-text">星图</span>
         </h1>
-        <p>
-          {variant === 'upload'
-            ? '选择一份 PDF。上传后会按小节切块并抽取知识单元，完成后会出现在「查看已有内容」里。'
-            : '打开一份阅读，或降落到这颗星球开始探索。'}
-        </p>
+        <p>打开一份阅读，或降落到这颗星球开始探索。</p>
         {uploadControl}
       </div>
 
       {error && <p className="shelf-error">{error}</p>}
 
-      {variant === 'upload' ? null : isLoading ? (
+      {isLoading ? (
         <div className="shelf-empty">
           <Loader2 className="animate-spin" />
         </div>

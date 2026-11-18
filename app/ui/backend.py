@@ -23,6 +23,7 @@ from app.rag.config import settings
 from app.llm_factory import make_llm
 from app.graph import tutor_graph, llm, extract_text
 from app.prompts.prompt_manager import PromptManager
+from app.prompts.zone_prompt import MAX_PLAY_ZONES, MIN_PLAY_ZONES
 from app.rag.chunker import chunk_pages
 from app.rag.knowledge_map import (
     extract_units_from_chunks,
@@ -215,7 +216,9 @@ def ask_tutor(
         # ---------------------------------------------------------
         # Determine source type
         # ---------------------------------------------------------
-        if relevance == "full":
+        # full and partial both stayed on the uploaded document.
+        # Web search runs only when relevance is none.
+        if relevance in {"full", "partial"}:
             source_type = "RAG"
         elif context:
             source_type = "WEB"
@@ -249,13 +252,18 @@ def ask_tutor(
         # ---------------------------------------------------------
         confidence = None
 
-        if source_type == "RAG" and context:
-            scores = []
+        if source_type == "RAG":
+            scored = context
+            if not any(
+                hasattr(doc, "metadata") and doc.metadata.get("relevance_score") is not None
+                for doc in context
+            ):
+                scored = result.get("retrieved") or []
 
-            for doc in context:
+            scores = []
+            for doc in scored:
                 if hasattr(doc, "metadata"):
                     score = doc.metadata.get("relevance_score")
-
                     if score is not None:
                         scores.append(float(score))
 
@@ -817,8 +825,8 @@ def _infer_planet_meta(file_name: str, context_hint: str = "", raw: Any = None) 
 
 def _normalize_zones(
     raw: Any,
-    min_count: int = 4,
-    max_count: int = 6,
+    min_count: int = MIN_PLAY_ZONES,
+    max_count: int = MAX_PLAY_ZONES,
     id_offset: int = 0,
 ) -> Optional[List[Dict[str, Any]]]:
     items = raw.get("zones") if isinstance(raw, dict) else raw
@@ -873,7 +881,7 @@ def _normalize_outline(raw: Any, first: Dict[str, Any]) -> List[Dict[str, str]]:
         outline[0] = head
     else:
         outline = [head]
-    return outline[:6]
+    return outline[:MAX_PLAY_ZONES]
 
 
 def _zone_prompt_inputs(document_id: str) -> Tuple[str, str, str]:
@@ -949,7 +957,7 @@ def generate_rest_zones(document_id: str, outline: List[Dict[str, str]], start: 
         {"title": str(item.get("title", "")).strip(), "summary": str(item.get("summary", "")).strip()}
         for item in outline
         if isinstance(item, dict) and str(item.get("title", "")).strip()
-    ][:6]
+    ][:MAX_PLAY_ZONES]
     if not planned:
         raise ValueError("Zone outline is empty.")
     name, safe_context, _ = _zone_prompt_inputs(document_id)

@@ -64,6 +64,11 @@ export const Landing = () => {
           <Link className="landing-logo" to="/" aria-label="Starlore 知识星典">
             Starlore 知识星典
           </Link>
+          {panel === 'upload' ? (
+            <button type="button" className="orbit-mode hud-glass upload-back" onClick={closePanel}>
+              ← 返回星海
+            </button>
+          ) : null}
         </header>
 
         {!panel && (
@@ -116,10 +121,11 @@ export const Landing = () => {
         )}
 
         {panel === 'upload' ? (
-          <div className="glass-panel">
-            <button type="button" className="glass-close" onClick={closePanel}>
-              返回星空
-            </button>
+          <div className="glass-panel upload-pod">
+            <span className="hud-corner tl" aria-hidden="true" />
+            <span className="hud-corner tr" aria-hidden="true" />
+            <span className="hud-corner bl" aria-hidden="true" />
+            <span className="hud-corner br" aria-hidden="true" />
             <Bookshelf
               refreshToken={libraryVersion}
               variant="upload"

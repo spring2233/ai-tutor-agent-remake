@@ -7,6 +7,11 @@ from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
 
 from app.rag.retriever import retrieve
+from app.rag.document_context import (
+    expand_document_context,
+    has_document_wide,
+    is_overview_question,
+)
 from app.prompts.prompt_manager import PromptManager
 from app.rag.config import settings
 from app.llm_factory import make_llm
@@ -104,6 +109,7 @@ def retrieve_node(state: TutorState) -> dict:
         logger.info("No document_id provided. Skipping RAG retrieval.")
         return {
             "context": [],
+            "retrieved": [],
             "metrics": {
                 **state.get("metrics", create_metrics()),
                 "retrieve_ms": elapsed_ms(timer),
@@ -120,6 +126,11 @@ def retrieve_node(state: TutorState) -> dict:
         documents = []
 
     logger.info("Retrieved documents: %d", len(documents))
+    # Similarity hits stay in `retrieved` for grading a specific question.
+    # `context` adds the knowledge map and, for whole-document questions,
+    # source text in reading order.
+    documents = list(documents)
+    context = expand_document_context(question, document_id, documents)
 
     # Log retrieved context for debugging
     for i, document in enumerate(documents, start=1):
@@ -133,7 +144,8 @@ def retrieve_node(state: TutorState) -> dict:
         logger.debug("Text: %s...", document.page_content[:300])
 
     return {
-        "context": documents,
+        "context": context,
+        "retrieved": documents,
         "metrics": {
             **state.get("metrics", create_metrics()),
             "retrieve_ms": elapsed_ms(timer),
@@ -154,8 +166,23 @@ def grade_node(state: TutorState) -> dict:
     question = state.get("student_question", "")
     context = state.get("context", [])
 
+    # A question about the whole PDF is covered once the map or the
+    # ordered source text is present. Grading those long contexts would
+    # only repeat the same conclusion and can miss sections.
+    if is_overview_question(question) and has_document_wide(context):
+        logger.info("Overview question has document-wide context. Relevance: full")
+        return {
+            "relevance": "full",
+            "metrics": {
+                **state.get("metrics", create_metrics()),
+                "grade_ms": elapsed_ms(timer),
+            },
+        }
+
+    grade_docs = _documents_to_grade(state, context)
+
     # No retrieved context
-    if not context:
+    if not grade_docs:
         logger.info("No context retrieved. Relevance: none")
         return {
             "relevance": "none",
@@ -168,7 +195,7 @@ def grade_node(state: TutorState) -> dict:
     # Convert documents into plain text
     context_text = "\n\n".join(
         document.page_content
-        for document in context
+        for document in grade_docs
     )
 
     # Get grader prompt
@@ -276,6 +303,20 @@ def generate_node(state: TutorState) -> dict:
 # ============================================================
 # CONDITIONAL ROUTING
 # ============================================================
+
+def _documents_to_grade(state: TutorState, context: list) -> list:
+    """Grade specific questions on similarity hits, not the whole-document map."""
+
+    if "retrieved" in state and state.get("retrieved"):
+        return list(state["retrieved"])
+    if "retrieved" in state:
+        return [
+            document
+            for document in context
+            if (getattr(document, "metadata", None) or {}).get("role") == "knowledge_map"
+        ]
+    return list(context)
+
 
 def parse_relevance(response_text: str) -> str:
     """Read the grader's relevance label, including fenced JSON."""

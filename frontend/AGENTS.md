@@ -8,7 +8,7 @@
 
 - `src/App.tsx`：`CosmosProvider` 在路由外常驻画布（`z-index: 0`）。路由：`/` 英雄页、`/chat` 星系、`/explore` 星球探索、`/ask` 问答、`/layout` 仍独立。`/quest` 带参数重定向到 `/explore`；`/flashcards` 已无路由。`QuestView`、`FlashcardsView`、`MemoryGame` 文件保留但不挂载。
 - `src/cosmos/CosmosContext.tsx`：单例 `CosmosScene`。离开页面**不要** `dispose()`。
-- `src/pages/Landing.tsx`：`/?panel=upload` 上传浮层。查看已有内容进 `/chat`。
+- `src/pages/Landing.tsx`：`/?panel=upload` 上传浮层（居中 640px 毛玻璃舱 `.upload-pod` + 四角 `.hud-corner`，顶栏「← 返回星海」胶囊）。内容是 `Bookshelf` 的 upload 分支：原恒星拖拽/点击引力区 → 三阶段凝聚进度（计时推进，接口返回才完成）→ `/chat?spawn=<id>`。样式在 `pages/landing.css`。查看已有内容进 `/chat`。
 - `src/pages/GalaxyArchive.tsx`：星图标签、创世上传、星球行动面板。
 - `src/pages/OrbitStage.tsx`：右侧毛玻璃 HUD 壳。
 - `src/cosmos/CosmosScene2.ts`：当前 3D 场景。`ViewMode`：`landing` / `galaxy` / `orbit` / `surface`。`syncPlanets` / `spawnPlanetAnimation` / `focusPlanet`。旧版 `CosmosScene.ts` 仍保留。
@@ -18,7 +18,7 @@
 - 地表探索 `/explore`：`components/explore/ZoneExplorer.tsx`（扫描档案 → 三阶段 → 费曼对线；对线区有概念胶囊与「◈ 调阅原典线索」抽屉）、`ResonanceTether.tsx`（共鸣丝线）、`zones.ts`（`ai-tutor-zones-v1:<document_id>` 存档，接 `/api/zones`、`/api/zones/feynman`，失败时本地降级）。3D 信标在 `cosmos/planetSurface.ts`，场景每帧经 `onZoneAnchors` 推送信标屏幕坐标。入口是星系星球面板的「降落地表探索」。
 - 音频（`CosmosScene2` 的 `ValleyAudioController`）全局单例 `AudioContext`，`masterGain` ≤ 0.15。背景是生成式宇宙风铃（C 大调五声 261.63–783.99Hz 纯正弦短音，1.4–2.6s 触发，无持续 Pad / 无噪声 Buffer / 无锯齿 / 无 <220Hz 长音）。`setMuffled` 只放慢触发并压峰值。交互走 `sfxGain` 0.9：`playUiTick`（D6）、`playGatePass(combo)`（C6–E6–G6–C7 风铃琶音 + 八度泛音，半音上移最多 7）、`playErrorBuzz`（E5→B4）、`playResonanceBoom`（C 大调和弦分解）。模块带 `import.meta.hot.dispose` 关闭旧 `AudioContext`，热更新后不会残留旧版长音。旧名 `playTick`、`playGateChord` 保留为别名。
 - 地表滑翔器是「流光星灵」：晶体核心 + 对称光翼 + 42 点粒子尾迹，按横向速度侧倾（最大 ±25°），穿门时放一圈加速光环。React 在 `onGateCross` 里调 `setGateCombo(n)`，答对时复苏波纹范围随连击放大（最多 2 倍）。
-- 首区秒开：`fetchZones` 先请求 `/api/zones` `stage: "first"`（星球简介 + 4 区规划 + 第 1 区完整数据），其余区域以 `pending: true` 占位；`ZoneExplorer` 后台用 `stage: "rest"` 补齐（同星球请求去重，失败重试一次后丢弃占位），离开页面时结果直接写进 `ai-tutor-zones-v1:<id>`。`SurfaceRun` 遇到还在生成的下一章会挂起并显示“仍在后台扫描”，数据到了自动铺门。
+- 首区秒开：`fetchZones` 先请求 `/api/zones` `stage: "first"`（星球简介 + 4–6 区规划 + 第 1 区完整数据），其余区域以 `pending: true` 占位；`ZoneExplorer` 后台用 `stage: "rest"` 补齐（同星球请求去重，失败重试一次后丢弃占位），离开页面时结果直接写进 `ai-tutor-zones-v1:<id>`。`SurfaceRun` 遇到还在生成的下一章会挂起并显示“仍在后台扫描”，数据到了自动铺门。
 - 每章 3~4 道门（定义 → 机制 → 细节/误区 → 应用），预置星每区 3 道。HUD 有连击徽章；每章通关后右侧弹「章节知识星碑」（`codexFor`，展示 4.2s，下一章光门延后 2.5s），鉴赏室卡片里可展开全部星碑。
 - 通关后的地表纯享漫游（`SurfaceRun` 的 `touring`：结算舱点「切入纯享漫游」，或鉴赏室「地表纯享漫游」带 `/explore?document=<id>&tour=1` 直接降落）挂 `TourReview.tsx`：`reviewCardsFor` 汇总各章光门论断为 8~12 张卡片（过多等距抽样，过少用星碑铭文/扫描结论/费曼要点补），`scene.setSurfaceMonoliths(n)` 让引擎在 `x≈±7.5` 左右错落循环铺 6 根发光星碑（间距 30m，滑行速度降到 55%），每帧经 `onMonolithAnchors` 推送前方 12~52m 内星碑顶端投影和 `weight`/`near`，卡片朝外侧展开、随距离放大淡入并在擦身前淡出。底部胶囊「◈ 全息星典总览 [M]」或 M 键切换中央深空毛玻璃面板（`rgba(6,10,20,0.68)` + `blur(18px)`），按章节列星球简介、区域简介、全部要点与星碑铭文，Esc 也能关。
 - 品牌名是「Starlore 知识星典」（`index.html` 标题与各页 `landing-logo` / `hud-logo`）。localStorage 键仍沿用 `ai-tutor-*`，不要改名以免丢存档。
@@ -27,7 +27,7 @@
 - 星球身份与进度：`cosmos/planetIdentity.ts`（四套主题配色、星球名生成、4 档阶段 `getPlanetStage`：0% 未探索 / 1–29% 或选中 探索中 / 30–99% 部分完成 / 100% 全部完成）。场景里 `CosmosScene2` 按 `DocumentItem.progress` 驱动 shader `uStage` 与外围装饰（虚线环、进度环、信标、能量弧、日冕、成就星环）；区域存档变化经 `ZONES_UPDATED_EVENT` 调 `setPlanetProgress`，不改 documents 状态以免镜头重飞。
 - 预置示范星：`data/planetPresets.ts` 是公开入口（类型、3 条星碑、`presetRecords`），区域剧本在 `cosmos/presetPlanets.ts`。id 以 `preset-` 开头，后端没有这两份文档，问答页对它们只能走网页搜索。
 - `/gallery` 星界鉴赏室（`pages/StarGallery.tsx`）：列出进度 100% 的星球；`?tour=<id>` 为纯享漫游（轨道视角 + 星碑轮播）。首页第三张卡进入。
-- 当前文档 id / 文件名：`ai-tutor-current-document-v2`、`ai-tutor-current-document-name-v2`。点星球即激活该文档。
+- 当前文档 id / 文件名：`ai-tutor-current-document-v2`、`ai-tutor-current-document-name-v2`。点星球即激活该文档。问答记录在 `ai-tutor-chat-history-v2`，按文档分开；再打开 `/ask?document=<id>` 会回到这颗星球最近一次问答，工具栏可以新开一段，旧的还在「本星问答」里。
 
 Vite 把 `/api` 代理到 `localhost:8000`。前端不要写死完整后端 URL。
 

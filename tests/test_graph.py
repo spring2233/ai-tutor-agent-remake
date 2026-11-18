@@ -41,6 +41,11 @@ def test_retrieve_node_with_document(monkeypatch):
         "retrieve",
         lambda question, document_id: expected_docs,
     )
+    monkeypatch.setattr(
+        graph,
+        "expand_document_context",
+        lambda question, document_id, retrieved: retrieved,
+    )
 
     state = {
         "student_question": "What is quantum computing?",
@@ -54,6 +59,7 @@ def test_retrieve_node_with_document(monkeypatch):
     assert result["context"][0].page_content.startswith(
         "Quantum computing"
     )
+    assert result["retrieved"] == expected_docs
 
 
 def test_retrieve_node_without_document():
@@ -65,6 +71,7 @@ def test_retrieve_node_without_document():
     result = graph.retrieve_node(state)
 
     assert result["context"] == []
+    assert result["retrieved"] == []
 
 
 # ============================================================
@@ -213,6 +220,54 @@ def test_route_after_grading(relevance, expected_route):
 # ============================================================
 # GENERATE NODE
 # ============================================================
+
+def test_grade_node_overview_uses_document_wide_context(monkeypatch):
+
+    mock_llm = MagicMock()
+    monkeypatch.setattr(graph, "llm", mock_llm)
+
+    state = {
+        "student_question": "告诉我这份pdf主要讲解了哪些知识，insight是什么",
+        "context": [
+            Document(
+                page_content="【全书知识地图】\nFast-WAM",
+                metadata={"role": "knowledge_map"},
+            )
+        ],
+        "retrieved": [make_document()],
+    }
+
+    result = graph.grade_node(state)
+
+    assert result["relevance"] == "full"
+    mock_llm.invoke.assert_not_called()
+
+
+def test_grade_node_specific_question_grades_hits_only(monkeypatch):
+
+    fake_response = mock_llm_response('{"relevance": "partial"}')
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = fake_response
+    monkeypatch.setattr(graph, "llm", mock_llm)
+
+    state = {
+        "student_question": "Spatial 分数是多少？",
+        "context": [
+            Document(
+                page_content="MAP_ONLY_TEXT",
+                metadata={"role": "knowledge_map"},
+            )
+        ],
+        "retrieved": [make_document("UNIQUE_CHUNK_TEXT")],
+    }
+
+    result = graph.grade_node(state)
+
+    assert result["relevance"] == "partial"
+    prompt = mock_llm.invoke.call_args[0][0]
+    assert "UNIQUE_CHUNK_TEXT" in prompt
+    assert "MAP_ONLY_TEXT" not in prompt
+
 
 def test_generate_node(monkeypatch):
 

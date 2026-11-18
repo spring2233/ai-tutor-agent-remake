@@ -104,3 +104,35 @@ def get_all_chunks_for_document(
     )
 
     return result.get("documents", [])
+
+
+def get_ordered_chunks(document_id: str) -> list[Document]:
+    """
+    Fetch every chunk of one document in reading order.
+    """
+    if not document_id:
+        raise ValueError("document_id cannot be empty.")
+
+    result = get_vectorstore().get(
+        where={"document_id": document_id},
+        include=["documents", "metadatas"],
+    )
+    texts = result.get("documents") or []
+    metas = result.get("metadatas") or []
+    documents: list[Document] = []
+    for index, text in enumerate(texts):
+        if not text or not str(text).strip():
+            continue
+        raw_meta = metas[index] if index < len(metas) and isinstance(metas[index], dict) else {}
+        metadata = dict(raw_meta)
+        metadata.setdefault("document_id", document_id)
+        documents.append(Document(page_content=str(text), metadata=metadata))
+
+    def sort_key(doc: Document) -> int:
+        try:
+            return int(doc.metadata.get("chunk_index"))
+        except (TypeError, ValueError):
+            return 10**9
+
+    documents.sort(key=sort_key)
+    return documents

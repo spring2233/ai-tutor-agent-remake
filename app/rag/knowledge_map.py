@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Iterable
 
 from langchain_core.documents import Document
@@ -16,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 MAX_EXTRACT_SECTIONS = 12
 MIN_SECTION_CHARS = 800
+EXTRACT_WORKERS = 8
+EXTRACT_MAX_TOKENS = 6144
+EXTRACT_TIMEOUT_S = 120
 
 
 def parse_units_payload(raw: Any) -> list[dict[str, Any]]:
@@ -144,11 +148,7 @@ def extract_units_from_chunks(
     if not sections:
         return []
 
-    def _invoke(prompt: str) -> str:
-        if invoke is not None:
-            return invoke(prompt)
-        llm = make_llm(temperature=0)
-        response = llm.invoke(prompt)
+    def _text(response: Any) -> str:
         content = getattr(response, "content", response)
         if isinstance(content, str):
             return content
@@ -160,13 +160,34 @@ def extract_units_from_chunks(
             return "".join(parts)
         return str(content)
 
+    fast_llm = None
+    if invoke is None:
+        fast_llm = make_llm(
+            temperature=0,
+            max_tokens=EXTRACT_MAX_TOKENS,
+            timeout=EXTRACT_TIMEOUT_S,
+            thinking=False,
+        )
+
     template = PromptManager.get_unit_prompt()
-    groups: list[list[dict[str, Any]]] = []
-    for section in sections:
-        safe = section.replace("{", "(").replace("}", ")")
+
+    def _extract(section: str) -> list[dict[str, Any]]:
+        prompt = template.format(context=section.replace("{", "(").replace("}", ")"))
         try:
-            raw = _invoke(template.format(context=safe))
-            groups.append(parse_units_payload(raw))
+            if invoke is not None:
+                return parse_units_payload(invoke(prompt))
+            try:
+                return parse_units_payload(_text(fast_llm.invoke(prompt)))
+            except Exception:
+                # Fast path may be rejected (thinking-only model) or truncated; retry with defaults.
+                logger.warning("Fast unit extraction failed; retrying with default model settings", exc_info=True)
+                return parse_units_payload(_text(make_llm(temperature=0).invoke(prompt)))
         except Exception:
             logger.warning("Skipping knowledge-unit extraction for one section", exc_info=True)
+            return []
+
+    workers = max(1, min(EXTRACT_WORKERS, len(sections)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        groups = list(pool.map(_extract, sections))
+    logger.info("Extracted knowledge units from %d sections", len(sections))
     return merge_units(groups)

@@ -81,6 +81,29 @@ def test_ask_tutor_rag_response(monkeypatch):
     })
 
 
+def test_ask_tutor_partial_stays_on_document(monkeypatch):
+
+    fake_result = {
+        "student_answer": "The paper compares several models.",
+        "context": [make_rag_document(0.62)],
+        "relevance": "partial",
+    }
+
+    mock_graph = MagicMock()
+    mock_graph.invoke.return_value = fake_result
+    monkeypatch.setattr(backend, "tutor_graph", mock_graph)
+
+    result = backend.ask_tutor(
+        question="What does the paper report?",
+        chat_history=[],
+        document="research_report.pdf",
+    )
+
+    assert result["source_type"] == "RAG"
+    assert result["source"] == "research_report.pdf"
+    assert "web_search" not in result["trace"]
+
+
 # ============================================================
 # ASK TUTOR — WEB FALLBACK
 # ============================================================

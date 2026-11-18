@@ -672,6 +672,56 @@ select.input {
   gap: 0.5rem;
 }
 
+.chat-planet-log {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.15rem;
+}
+
+.chat-planet-log > span {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.chat-planet-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
+  border: 1px solid rgba(245, 239, 226, 0.14);
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.45);
+}
+
+.chat-planet-chip.active {
+  border-color: rgba(186, 164, 255, 0.7);
+}
+
+.chat-planet-chip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chat-planet-chip > button:first-child {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.28rem 0.15rem 0.28rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.chat-planet-chip-delete {
+  padding: 0.28rem 0.45rem 0.28rem 0.15rem;
+  color: var(--muted);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

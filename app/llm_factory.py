@@ -9,6 +9,7 @@ def make_llm(
     temperature: float,
     max_tokens: Optional[int] = None,
     timeout: Optional[float] = None,
+    thinking: Optional[bool] = None,
 ):
     if max_tokens is None:
         max_tokens = settings.llm_max_tokens
@@ -16,6 +17,8 @@ def make_llm(
         from langchain_openai import ChatOpenAI
 
         extra = {"timeout": timeout, "max_retries": 1} if timeout else {}
+        if thinking is not None:
+            extra["extra_body"] = {"enable_thinking": thinking}
         return ChatOpenAI(
             model=settings.dashscope_model,
             api_key=settings.dashscope_api_key,
